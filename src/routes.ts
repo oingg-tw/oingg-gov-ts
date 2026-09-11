@@ -5,6 +5,8 @@ import monthlyCpiRouter from '@/domains/monthlyCpi/route';
 import quarterlyGdpRouter from '@/domains/quarterlyGdp/route';
 import monthlyUnemploymentRateRouter from '@/domains/monthlyUnemploymentRate/route';
 import monthlyBusinessCycleIndicatorRouter from '@/domains/monthlyBusinessCycleIndicator/route';
+import fundBasicInfoRouter from '@/domains/fundBasicInfo/route';
+import fundDailyNavRouter from '@/domains/fundDailyNav/route';
 import companyBusinessItemsRouter from '@/domains/companyBusinessItems/route';
 import taxIndustryClassificationRouter from '@/domains/taxIndustryClassification/route';
 import companyProfileIngestRouter from '@/domains/companyProfile/ingestRoute';
@@ -35,6 +37,8 @@ ingestRouter.use(monthlyCpiRouter);
 ingestRouter.use(quarterlyGdpRouter);
 ingestRouter.use(monthlyUnemploymentRateRouter);
 ingestRouter.use(monthlyBusinessCycleIndicatorRouter);
+ingestRouter.use(fundBasicInfoRouter);
+ingestRouter.use(fundDailyNavRouter);
 ingestRouter.use(companyProfileIngestRouter);
 ingestRouter.use(companyIndustryClassificationRouter);
 

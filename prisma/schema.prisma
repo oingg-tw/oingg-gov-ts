@@ -307,3 +307,68 @@ model CompanyIndustryClassification {
   @@map("company_industry_classifications")
   @@schema("public")
 }
+
+/// 投信投顧公會(SITCA)在 data.gov.tw 登記的境內基金基本資料(資料集43476)，由
+/// /api/ingest/fund-basic-info 觸發向 sitca.org.tw 固定路徑 CSV（無查詢式 API）抓取。已用真實
+/// 檔案驗證過涵蓋 ETF(被動+主動式都有，例如「兆豐台灣豐收主動式ETF基金」)，不是只有傳統基金。
+/// 這份檔案本身是「當月快照」，不是累積歷史，每次 ingest 只新增當月一批。isinCode 跟(year, month)
+/// 一起是唯一鍵——實測發現極少數列(4433筆裡1筆)ISIN Code是空的，這種列在 service.ts 就被過濾掉，
+/// 不會出現在這張表。fundInceptionDate/fundSizeDate 故意存原始字串不轉型別，來源未標明是西元還是
+/// 民國格式，比照 CompanyProfile.companySetupDate 的做法，避免猜錯換算規則。
+model FundBasicInfo {
+  year  Int
+  month Int
+
+  companyName          String   @map("company_name") // 基金公司(投信)名稱
+  fundName             String   @map("fund_name")
+  fundTaxId            String   @map("fund_tax_id") // 統編
+  fundInceptionDate    String   @map("fund_inception_date") // 基金/級別成立日期，原始格式
+  fundSizeDate         String   @map("fund_size_date") // 基金規模日期，原始格式
+  fundSizeCurrency     String   @map("fund_size_currency")
+  classSizeAmount      Decimal? @map("class_size_amount") @db.Decimal(20, 4) // 基金級別規模_金額
+  fundSizeAmount       Decimal? @map("fund_size_amount") @db.Decimal(20, 4) // 基金規模(依基金別)_金額
+  fundType             String   @map("fund_type") // 例如"(AH22) 跨國投資指數股票型_債券型"
+  investmentRegion     String   @map("investment_region")
+  dividendPolicy       String   @map("dividend_policy")
+  isinCode             String   @map("isin_code")
+  custodianDomestic    String?  @map("custodian_domestic")
+  custodianForeign     String?  @map("custodian_foreign")
+  denominationCurrency String   @map("denomination_currency")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([year, month, isinCode])
+  @@index([fundTaxId])
+  @@map("fund_basic_info")
+  @@schema("public")
+}
+
+/// 投信投顧公會(SITCA)在 data.gov.tw 登記的境內基金每日淨值(資料集11109)，由
+/// /api/ingest/fund-daily-nav 觸發向 sitca.org.tw 固定路徑 CSV（無查詢式 API）抓取。已用真實檔案
+/// 驗證過：單次回應含 2 個交易日(滾動窗口，不是只有最新一天)，涵蓋 ETF。fundCode 實測不是逐檔
+/// 唯一鍵(同一天同一個代號會對應好幾檔完全不同公司的基金)，真正的唯一鍵是 beneficiaryCode(受益
+/// 憑證代號)，跟 tradeDate 一起組成 @@unique——這個組合已用真實資料驗證過4451列全部唯一、無缺值。
+model FundDailyNav {
+  tradeDate DateTime @map("trade_date") @db.Date
+
+  memberCode      String   @map("member_code")
+  companyName     String   @map("company_name")
+  fundTaxId       String   @map("fund_tax_id")
+  fundCode        String   @map("fund_code") // 不保證唯一，僅供參考，見上方模型註解
+  fundName        String   @map("fund_name")
+  navValue        Decimal? @map("nav_value") @db.Decimal(14, 4)
+  changeValue     Decimal? @map("change_value") @db.Decimal(14, 4)
+  changePercent   Decimal? @map("change_percent") @db.Decimal(10, 5)
+  typeCode        String   @map("type_code")
+  currency        String
+  beneficiaryCode String   @map("beneficiary_code")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([tradeDate, beneficiaryCode])
+  @@index([fundTaxId])
+  @@map("fund_daily_nav")
+  @@schema("public")
+}
