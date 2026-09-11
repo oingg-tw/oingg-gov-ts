@@ -17,11 +17,15 @@ export interface IngestFundDailyNavResult {
   error?: string;
 }
 
-const recordIngestionRun = async (status: 'success' | 'failed', points: FundDailyNavPoint[]): Promise<void> => {
+const recordIngestionRun = async (
+  status: 'success' | 'failed',
+  points: FundDailyNavPoint[],
+  sourceLastModified: Date | null
+): Promise<void> => {
   try {
     const latest = points.reduce<Date | null>((acc, p) => (!acc || p.tradeDate > acc ? p.tradeDate : acc), null);
     await prisma.ingestionRun.create({
-      data: { dataset: EXPORT_DATASET, dataDate: latest ?? new Date(), rowCount: points.length, status },
+      data: { dataset: EXPORT_DATASET, dataDate: latest ?? new Date(), rowCount: points.length, status, sourceLastModified },
     });
   } catch (error) {
     console.error('Failed to record ingestion run for analysis-ts export contract:', error);
@@ -33,10 +37,13 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: FundDail
 // 處理「已存在就跳過」（也順便處理了滾動窗口重疊的那 1 天）。
 export const ingestFundDailyNav = async (force = false): Promise<IngestFundDailyNavResult> => {
   let csv: string;
+  let sourceLastModified: Date | null;
   try {
-    csv = await fetchSitcaCsv(FUND_DAILY_NAV_CSV_URL);
+    const fetched = await fetchSitcaCsv(FUND_DAILY_NAV_CSV_URL);
+    csv = fetched.content;
+    sourceLastModified = fetched.lastModified;
   } catch (error) {
-    await recordIngestionRun('failed', []);
+    await recordIngestionRun('failed', [], null);
     return { success: false, totalPoints: 0, fetched: 0, skipped: 0, error: error instanceof Error ? error.message : String(error) };
   }
 
@@ -44,7 +51,7 @@ export const ingestFundDailyNav = async (force = false): Promise<IngestFundDaily
   try {
     points = parseFundDailyNav(csv);
   } catch (error) {
-    await recordIngestionRun('failed', []);
+    await recordIngestionRun('failed', [], sourceLastModified);
     return { success: false, totalPoints: 0, fetched: 0, skipped: 0, error: error instanceof Error ? error.message : String(error) };
   }
 
@@ -63,18 +70,18 @@ export const ingestFundDailyNav = async (force = false): Promise<IngestFundDaily
     beneficiaryCode: p.beneficiaryCode,
   }));
 
-  let fetched: number;
+  let fetchedCount: number;
   let skipped: number;
   if (force) {
     await prisma.$transaction([prisma.fundDailyNav.deleteMany({}), prisma.fundDailyNav.createMany({ data })]);
-    fetched = points.length;
+    fetchedCount = points.length;
     skipped = 0;
   } else {
     const result = await prisma.fundDailyNav.createMany({ data, skipDuplicates: true });
-    fetched = result.count;
+    fetchedCount = result.count;
     skipped = points.length - result.count;
   }
 
-  await recordIngestionRun('success', points);
-  return { success: true, totalPoints: points.length, fetched, skipped };
+  await recordIngestionRun('success', points, sourceLastModified);
+  return { success: true, totalPoints: points.length, fetched: fetchedCount, skipped };
 };

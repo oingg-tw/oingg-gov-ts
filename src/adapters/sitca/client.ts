@@ -10,11 +10,25 @@
 // 兩份 CSV（境內基金基本資料、每日淨值）都已用真實檔案核對過：UTF-8 with BOM、無欄位內含逗號、
 // 無雙引號跳脫需求，用簡單的 split(',') 就夠，不需要像 fia/client.ts 那樣處理引號跳脫。
 
-export const fetchSitcaCsv = async (url: string): Promise<string> => {
+export interface SitcaCsvFetchResult {
+  content: string;
+  // 伺服器回應的 Last-Modified header，轉成的日期——這是「SITCA 那邊實際更新這個檔案的時間」，
+  // 不是我們 ingest 的時間。實測發現 fund_basic_info 這份月快照的真實發布時間跟月底有明顯落差
+  // （7月資料的 Last-Modified 是8月18日），累積多次這個欄位的紀錄，才能之後回頭校準排程時間，
+  // 不用每次都手動 curl -I 去查。可能是 null——不是每個回應都保證有這個 header。
+  lastModified: Date | null;
+}
+
+export const fetchSitcaCsv = async (url: string): Promise<SitcaCsvFetchResult> => {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`SITCA CSV 下載失敗：HTTP ${response.status}（url=${url}）`);
   }
   const buffer = Buffer.from(await response.arrayBuffer());
-  return buffer.toString('utf8').replace(/^﻿/, ''); // 去掉 BOM，避免第一欄位名稱比對失敗
+  const content = buffer.toString('utf8').replace(/^﻿/, ''); // 去掉 BOM，避免第一欄位名稱比對失敗
+
+  const lastModifiedHeader = response.headers.get('last-modified');
+  const lastModified = lastModifiedHeader ? new Date(lastModifiedHeader) : null;
+
+  return { content, lastModified: lastModified && !Number.isNaN(lastModified.getTime()) ? lastModified : null };
 };

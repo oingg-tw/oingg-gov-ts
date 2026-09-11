@@ -16,7 +16,11 @@ export interface IngestFundBasicInfoResult {
   error?: string;
 }
 
-const recordIngestionRun = async (status: 'success' | 'failed', points: FundBasicInfoPoint[]): Promise<void> => {
+const recordIngestionRun = async (
+  status: 'success' | 'failed',
+  points: FundBasicInfoPoint[],
+  sourceLastModified: Date | null
+): Promise<void> => {
   try {
     const latest = points.reduce<{ year: number; month: number } | null>((acc, p) => {
       if (!acc || p.year > acc.year || (p.year === acc.year && p.month > acc.month)) return { year: p.year, month: p.month };
@@ -25,7 +29,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: FundBasi
     const dataDate = latest ? new Date(Date.UTC(latest.year, latest.month - 1, 1)) : new Date();
 
     await prisma.ingestionRun.create({
-      data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status },
+      data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status, sourceLastModified },
     });
   } catch (error) {
     console.error('Failed to record ingestion run for analysis-ts export contract:', error);
@@ -37,10 +41,13 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: FundBasi
 // 處理「已存在就跳過」。
 export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasicInfoResult> => {
   let csv: string;
+  let sourceLastModified: Date | null;
   try {
-    csv = await fetchSitcaCsv(FUND_BASIC_INFO_CSV_URL);
+    const fetched = await fetchSitcaCsv(FUND_BASIC_INFO_CSV_URL);
+    csv = fetched.content;
+    sourceLastModified = fetched.lastModified;
   } catch (error) {
-    await recordIngestionRun('failed', []);
+    await recordIngestionRun('failed', [], null);
     return { success: false, totalPoints: 0, fetched: 0, skipped: 0, error: error instanceof Error ? error.message : String(error) };
   }
 
@@ -48,7 +55,7 @@ export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasi
   try {
     points = parseFundBasicInfo(csv);
   } catch (error) {
-    await recordIngestionRun('failed', []);
+    await recordIngestionRun('failed', [], sourceLastModified);
     return { success: false, totalPoints: 0, fetched: 0, skipped: 0, error: error instanceof Error ? error.message : String(error) };
   }
 
@@ -72,18 +79,18 @@ export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasi
     denominationCurrency: p.denominationCurrency,
   }));
 
-  let fetched: number;
+  let fetchedCount: number;
   let skipped: number;
   if (force) {
     await prisma.$transaction([prisma.fundBasicInfo.deleteMany({}), prisma.fundBasicInfo.createMany({ data })]);
-    fetched = points.length;
+    fetchedCount = points.length;
     skipped = 0;
   } else {
     const result = await prisma.fundBasicInfo.createMany({ data, skipDuplicates: true });
-    fetched = result.count;
+    fetchedCount = result.count;
     skipped = points.length - result.count;
   }
 
-  await recordIngestionRun('success', points);
-  return { success: true, totalPoints: points.length, fetched, skipped };
+  await recordIngestionRun('success', points, sourceLastModified);
+  return { success: true, totalPoints: points.length, fetched: fetchedCount, skipped };
 };

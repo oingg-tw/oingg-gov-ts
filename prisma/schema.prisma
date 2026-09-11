@@ -266,6 +266,15 @@ model IngestionRun {
   rowCount    Int      @map("row_count")
   status      String // success | partial | failed
 
+  // 來源檔案伺服器回應的 Last-Modified header（2026-09-11 因 fund_basic_info 新增）——這是「來源
+  // 那邊實際更新這份檔案的時間」，跟 completedAt（我們自己 ingest 的時間）是兩件事，故意分開存。
+  // 動機：fund_basic_info 這種「月快照但真實發布時間點不明確」的來源，單次觀測（7月資料實測8月18日
+  // 才發布）不足以校準排程，要累積多筆這個欄位的紀錄才能回頭抓到真實的發布規律。目前只有
+  // fund_basic_info/fund_daily_nav 兩個 domain 的 service.ts 會填這個值；其他既有 domain 呼叫
+  // recordIngestionRun 時不帶這個欄位，會是 null——這不代表那些來源沒有 Last-Modified，只是還沒
+  // 排進去補這個欄位，不是資料缺陷。
+  sourceLastModified DateTime? @map("source_last_modified")
+
   @@index([dataset, status])
   @@map("ingestion_runs")
   @@schema("export")
