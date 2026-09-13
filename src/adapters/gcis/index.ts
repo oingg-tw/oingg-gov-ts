@@ -1,3 +1,5 @@
+import { OUTBOUND_USER_AGENT } from '@/shared/config';
+
 // 經濟部商工行政資料開放平台「公司登記基本資料及營業項目」API 的共用 GET client。用統一編號
 // （Business_Accounting_NO）查詢，回傳陣列（因為底層是 $filter 查詢，理論上可能查到 0 或 1 筆——
 // 統編本身唯一，正常情況下不會超過 1 筆）。這個端點不需要 API key。
@@ -44,7 +46,7 @@ const requestOnce = async (businessAccountingNo: string): Promise<GcisCompanyRec
 
   const filter = `Business_Accounting_NO eq '${businessAccountingNo}'`;
   const url = `${GCIS_COMPANY_BUSINESS_API_URL}?${new URLSearchParams({ $format: 'json', $filter: filter }).toString()}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`GCIS API 回應非 200：${response.status}（統編=${businessAccountingNo}）`);
   }

@@ -1,4 +1,5 @@
 import https from 'node:https';
+import { OUTBOUND_USER_AGENT } from '@/shared/config';
 
 // 行政院主計總處統計網站的固定路徑 XML 下載檔案（ws.dgbas.gov.tw），不是正式 REST API——每份
 // 統計表各自有自己的固定 URL（依資料集不同，見各 domain 的 service.ts），沒有查詢參數，只能整份
@@ -33,7 +34,7 @@ const OBS_REGEX = /<Obs>\s*<Item>([^<]*)<\/Item>\s*<TIME_PERIOD>([^<]*)<\/TIME_P
 export const fetchDgbasXml = (url: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { rejectUnauthorized: false }, (res) => {
+      .get(url, { rejectUnauthorized: false, headers: { 'User-Agent': OUTBOUND_USER_AGENT } }, (res) => {
         const statusCode = res.statusCode ?? 0;
         if (statusCode < 200 || statusCode >= 300) {
           res.resume(); // 消耗掉 response body，避免 socket 卡住不釋放

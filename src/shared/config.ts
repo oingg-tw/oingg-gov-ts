@@ -21,3 +21,11 @@ export const config = {
   isProduction: process.env.NODE_ENV === 'production',
   port: process.env.PORT || 8084,
 };
+
+// 2026-09-13 跨服務(twse-ts/tpex-ts/mops-ts/sitca-ts)一起對齊的 User-Agent 格式，取代原本六個
+// adapter（CBC/GCIS/FIA/DGBAS/NDC/SITCA）完全沒設 User-Agent、用 fetch/undici 預設值的狀態——讓
+// 對方（政府機關/公會網站）看得出「這是誰的自動化流量」，出問題時也有據可查。格式：
+// `<CrawlerName>/<Version> (+<Documentation-URL>; <Contact-Email>)`。實測驗證：twse-ts 用同一套
+// 格式打過灰色地帶端點沒被擋，sitca-ts 對 4 種端點形狀（含 WebForms）都測過沒觸發自動封鎖，這裡
+// 直接沿用，不用每個 adapter 各自重新驗證一次。
+export const OUTBOUND_USER_AGENT = 'oingg-gov-ts/1.0 (+https://github.com/oingg-tw/oingg-gov-ts; ian.chu@oingg.com)';

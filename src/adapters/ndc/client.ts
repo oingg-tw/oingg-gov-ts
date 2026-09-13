@@ -1,4 +1,5 @@
 import AdmZip from 'adm-zip';
+import { OUTBOUND_USER_AGENT } from '@/shared/config';
 
 // 國發會景氣指標及燈號（data.gov.tw/dataset/6099），固定路徑 ZIP 檔案，不是正式 REST API。實際
 // 打開 https://data.gov.tw/api/v2/rest/dataset/6099 查到的下載連結（2026-09-02）——這個 URL 本身
@@ -14,7 +15,7 @@ const TARGET_ENTRY_NAME = '景氣指標與燈號.csv';
 // 回傳 CSV 原始文字（UTF-8 with BOM，呼叫端自己處理 BOM/表頭）。ws.ndc.gov.tw 的 TLS 憑證正常
 // （不像 ws.dgbas.gov.tw 那台主機，見 adapters/dgbas/client.ts 的說明），用一般 fetch 即可。
 export const fetchBusinessCycleIndicatorCsv = async (): Promise<string> => {
-  const response = await fetch(BUSINESS_CYCLE_ZIP_URL);
+  const response = await fetch(BUSINESS_CYCLE_ZIP_URL, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`國發會景氣指標 ZIP 下載失敗：HTTP ${response.status}`);
   }

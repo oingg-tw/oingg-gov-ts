@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import prisma from '@/adapters/prisma/index';
 import { FIA_BUSINESS_TAX_REGISTRY_CSV_URL, parseFiaBusinessTaxRegistryLine } from '@/adapters/fia/client';
 import type { IngestCompanyIndustryClassificationResult } from '@/domains/companyIndustryClassification/types';
+import { OUTBOUND_USER_AGENT } from '@/shared/config';
 
 const EXPORT_DATASET = 'company_industry_classification'; // 對應 export.company_industry_classification view
 
@@ -42,7 +43,7 @@ interface RegistryMatch {
 // 全國稅籍登記檔（約322MB、171萬列）用串流逐行處理，不整份載進記憶體——只在乎 targetTaxIds 這個小
 // 集合，其餘列邊讀邊丟。回傳每個統編找到的「總公司本身」那一列（統一編號=自己、總機構統一編號=空白）。
 const streamMatchRegistry = async (targetTaxIds: Set<string>): Promise<Map<string, RegistryMatch>> => {
-  const response = await fetch(FIA_BUSINESS_TAX_REGISTRY_CSV_URL);
+  const response = await fetch(FIA_BUSINESS_TAX_REGISTRY_CSV_URL, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok || !response.body) {
     throw new Error(`FIA 稅籍登記資料下載失敗：HTTP ${response.status}`);
   }

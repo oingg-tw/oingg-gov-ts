@@ -1,3 +1,5 @@
+import { OUTBOUND_USER_AGENT } from '@/shared/config';
+
 // 中央銀行統計資料庫 API（cpx.cbc.gov.tw）的共用 GET client。查詢語法固定是
 // `?FileName=ItemCode`，ItemCode 對照表見專案根目錄 CBC-ITEM-CODES.md（整理自央行提供的
 // 「Introduction to the API of the CBC Statistical Database」文件）。這個端點本身就回傳
@@ -20,7 +22,7 @@ export interface CbcApiResponse {
 
 export const fetchCbcItem = async (itemCode: string): Promise<CbcApiResponse> => {
   const url = `${CBC_API_BASE_URL}?FileName=${encodeURIComponent(itemCode)}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`CBC API 回應非 200：${response.status}（itemCode=${itemCode}）`);
   }

@@ -1,3 +1,5 @@
+import { OUTBOUND_USER_AGENT } from '@/shared/config';
+
 // 投信投顧公會(SITCA)在 data.gov.tw 登記的開放資料集，實際檔案掛在 sitca.org.tw，固定路徑 CSV
 // 直連，無查詢式 API。跟其他 service（例如 oingg-sitca-ts）的分工是：登記在 data.gov.tw 平台的
 // 正式開放資料集歸這裡（gov-ts），sitca.org.tw 上其他非 data.gov.tw 登記的 WebForms 報表/
@@ -20,7 +22,7 @@ export interface SitcaCsvFetchResult {
 }
 
 export const fetchSitcaCsv = async (url: string): Promise<SitcaCsvFetchResult> => {
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`SITCA CSV 下載失敗：HTTP ${response.status}（url=${url}）`);
   }
