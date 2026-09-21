@@ -4,7 +4,7 @@
  * 不符的 job，或建立設定裡有、但 Cloud Scheduler 上還沒有的 job。
  *
  * 抄自 oingg-twse-ts/scripts/reconcileScheduler.ts，差異：
- * - 多比對/套用 attemptDeadline（gov-ts 有兩支 15-30 分鐘的 long-running job，見 scheduler.config.ts）
+ * - 多比對/套用 attemptDeadline，可逐 job 覆寫（gov-ts 有兩支 15-30 分鐘的 long-running job，見 scheduler.config.ts）
  * - 執行前先擋 serviceUrl/serviceAccount 還是 placeholder 的情況
  * - Task secret 名稱從 config 讀（gov-task-secret），不寫死
  *
@@ -35,7 +35,16 @@ function runGcloud(args: string[]): string {
 }
 
 function listActualJobs(): Map<string, ActualJob> {
-  const output = runGcloud(['scheduler', 'jobs', 'list', `--location=${schedulerConfig.region}`, '--format=json']);
+  let output: string;
+  try {
+    output = runGcloud(['scheduler', 'jobs', 'list', `--location=${schedulerConfig.region}`, '--format=json']);
+  } catch (error) {
+    // gcloud 的 auth token 每天過期，非互動執行會直接死在這裡——把 stderr 原樣印出來，不然只看到
+    // JSON.parse 失敗看不出是 auth 問題（twse-ts 三週心得）。
+    console.error('[reconcile] gcloud scheduler jobs list failed:');
+    console.error((error as { stderr?: string }).stderr ?? (error as Error).message);
+    process.exit(1);
+  }
   const raw = JSON.parse(output) as Array<{
     name: string;
     schedule: string;
@@ -69,6 +78,8 @@ function getTaskSecret(): string {
   return cachedTaskSecret;
 }
 
+const expectedAttemptDeadline = (job: SchedulerJobConfig): string => job.attemptDeadline ?? schedulerConfig.defaults.attemptDeadline;
+
 function buildUpdateArgs(job: SchedulerJobConfig, isCreate: boolean): string[] {
   const uri = `${schedulerConfig.serviceUrl}${job.path}`;
   const args = [
@@ -83,7 +94,7 @@ function buildUpdateArgs(job: SchedulerJobConfig, isCreate: boolean): string[] {
     `--max-retry-attempts=${schedulerConfig.defaults.maxRetryAttempts}`,
     `--min-backoff=${schedulerConfig.defaults.minBackoff}`,
     `--max-backoff=${schedulerConfig.defaults.maxBackoff}`,
-    `--attempt-deadline=${schedulerConfig.defaults.attemptDeadline}`,
+    `--attempt-deadline=${expectedAttemptDeadline(job)}`,
     `--uri=${uri}`,
   ];
   if (isCreate) {
@@ -189,7 +200,7 @@ function main() {
       existing.schedule !== job.schedule ||
       existing.timeZone !== schedulerConfig.defaults.timeZone ||
       existing.uri !== expectedUri ||
-      existing.attemptDeadline !== schedulerConfig.defaults.attemptDeadline
+      existing.attemptDeadline !== expectedAttemptDeadline(job)
     ) {
       toUpdate.push(job);
       continue;
@@ -217,8 +228,8 @@ function main() {
       }
       const expectedUri = `${schedulerConfig.serviceUrl}${job.path}`;
       if (existing.uri !== expectedUri) console.log(`      uri: ${existing.uri}  ->  ${expectedUri}`);
-      if (existing.attemptDeadline !== schedulerConfig.defaults.attemptDeadline) {
-        console.log(`      attemptDeadline: ${existing.attemptDeadline || '(default)'}  ->  ${schedulerConfig.defaults.attemptDeadline}`);
+      if (existing.attemptDeadline !== expectedAttemptDeadline(job)) {
+        console.log(`      attemptDeadline: ${existing.attemptDeadline || '(default)'}  ->  ${expectedAttemptDeadline(job)}`);
       }
     }
   }
