@@ -8,8 +8,10 @@
  * createMany skipDuplicates），成本可忽略，不另外做「來源有沒有更新」的偵測（同樣的推理見
  * twse-ts README「排程集中管理」跟 sitca-ts 的 scheduler.config.ts）。
  *
- * 時段選 05:00-05:35：sitca-ts 的排程佔 06:00-06:45、twse-ts 佔 07:00 起，gov-ts 跟 sitca-ts 都會
- * 打 www.sitca.org.tw，錯開整個小時是為了不在同一分鐘對同一個來源發兩批請求。SITCA 的 nav.csv
+ * 時段選 05:02-05:37：sitca-ts 的排程佔 06:00-06:45、twse-ts 佔 07:00 起，gov-ts 跟 sitca-ts 都會
+ * 打 www.sitca.org.tw，錯開整個小時是為了不在同一分鐘對同一個來源發兩批請求。不從整點 05:00
+ * 開始、每支都偏 2 分鐘，是 tpex-ts 上線後的實戰回饋（2026-09-21）：同一個上游端點在整點被排程
+ * 觸發的瞬間偶爾會明顯變慢到逾時——整點是全世界 cron 的預設時間，避開它成本是零。SITCA 的 nav.csv
  * 是 T 日晚間發布（2026-09-11 實測 13:13 抓到的最新一天還是前一天），隔天清晨抓 T 日資料沒問題，
  * 而且檔案本身是 2 個交易日的滾動窗口，漏一天也補得回來。
  *
@@ -54,19 +56,19 @@ export const schedulerConfig = {
   },
   jobs: [
     // 央行統計資料庫（cpx.cbc.gov.tw）——兩個都是單次請求回傳整段歷史，秒級完成
-    { name: 'gov-bond-yield-10y-daily', path: '/api/ingest/gov-bond-yield-10y', schedule: '0 5 * * *' },
-    { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '5 5 * * *' },
+    { name: 'gov-bond-yield-10y-daily', path: '/api/ingest/gov-bond-yield-10y', schedule: '2 5 * * *' },
+    { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '7 5 * * *' },
     // 主計總處固定路徑 XML（ws.dgbas.gov.tw）——CPI 檔約 13MB，三支錯開
-    { name: 'monthly-cpi-daily', path: '/api/ingest/monthly-cpi', schedule: '10 5 * * *' },
-    { name: 'monthly-unemployment-rate-daily', path: '/api/ingest/monthly-unemployment-rate', schedule: '15 5 * * *' },
-    { name: 'quarterly-gdp-daily', path: '/api/ingest/quarterly-gdp', schedule: '20 5 * * *' },
+    { name: 'monthly-cpi-daily', path: '/api/ingest/monthly-cpi', schedule: '12 5 * * *' },
+    { name: 'monthly-unemployment-rate-daily', path: '/api/ingest/monthly-unemployment-rate', schedule: '17 5 * * *' },
+    { name: 'quarterly-gdp-daily', path: '/api/ingest/quarterly-gdp', schedule: '22 5 * * *' },
     // 國發會景氣指標 ZIP（ws.ndc.gov.tw）
-    { name: 'monthly-business-cycle-indicator-daily', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '25 5 * * *' },
+    { name: 'monthly-business-cycle-indicator-daily', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '27 5 * * *' },
     // 投信投顧公會 CSV（www.sitca.org.tw）
-    { name: 'fund-basic-info-daily', path: '/api/ingest/fund-basic-info', schedule: '30 5 * * *' },
-    { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '35 5 * * *' },
-    // 每週日凌晨的兩支 long-running job，理由見檔頭
-    { name: 'company-profile-refresh-tracked-weekly', path: '/api/ingest/company-profile/refresh-tracked', schedule: '0 3 * * 0' },
-    { name: 'company-industry-classification-weekly', path: '/api/ingest/company-industry-classification', schedule: '0 4 * * 0' },
+    { name: 'fund-basic-info-daily', path: '/api/ingest/fund-basic-info', schedule: '32 5 * * *' },
+    { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '37 5 * * *' },
+    // 每週日凌晨的兩支 long-running job，理由見檔頭；同樣避開整點
+    { name: 'company-profile-refresh-tracked-weekly', path: '/api/ingest/company-profile/refresh-tracked', schedule: '2 3 * * 0' },
+    { name: 'company-industry-classification-weekly', path: '/api/ingest/company-industry-classification', schedule: '2 4 * * 0' },
   ] satisfies SchedulerJobConfig[],
 };
