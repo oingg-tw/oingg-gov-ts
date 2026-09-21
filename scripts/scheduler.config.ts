@@ -53,8 +53,12 @@ export const schedulerConfig = {
     attemptDeadline: '180s',
   },
   jobs: [
-    // 央行統計資料庫（cpx.cbc.gov.tw）
+    // 央行統計資料庫（cpx.cbc.gov.tw）——月報系列（公債殖利率、貨幣總計數、匯率）都是隨《金融統計
+    // 月報》在每月 25 日前後一起更新上個月的資料，所以同樣排每月 5 日；匯率雖是日資料但也是這個節奏
+    // 批次補上（見 dailyUsdTwdRate/route.ts），每天打只會拿到同一份。
     { name: 'gov-bond-yield-10y-monthly', path: '/api/ingest/gov-bond-yield-10y', schedule: '2 3 5 * *' },
+    { name: 'monthly-monetary-aggregate-monthly', path: '/api/ingest/monthly-monetary-aggregate', schedule: '37 3 5 * *' },
+    { name: 'daily-usd-twd-rate-monthly', path: '/api/ingest/daily-usd-twd-rate', schedule: '42 3 5 * *' },
     { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '2 5 * * *' },
     // 主計總處固定路徑 XML（ws.dgbas.gov.tw）
     { name: 'monthly-cpi-monthly', path: '/api/ingest/monthly-cpi', schedule: '7 3 10 * *' },

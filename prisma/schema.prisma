@@ -57,6 +57,60 @@ model CbcPolicyRate {
   @@schema("public")
 }
 
+/// 貨幣總計數月資料，由 /api/ingest/monthly-monetary-aggregate 觸發向央行統計資料庫 API
+/// （FileName=EF15M01en，"5.Monetary Aggregates-A.Averages of Daily Figures By Period"）抓取。刻意取
+/// 「日平均」而不是同一組的「月底餘額」（EF17M01en）——市場慣用的「M1B 年增率／M2 年增率、黃金交叉」
+/// 是用日平均算的，這才是拿來跟大盤對照的那個數字。
+///
+/// 原始回應 15 個項目（通貨、各類存款、準貨幣細項、M1A/M1B/M2），每個項目都是「餘額＋年增率」一組
+/// （2026-09-21 用真實回應核對：每列 1 個期間字串＋30 個值，餘額/年增率交錯配對）。這裡只存三個總計
+/// 數 M1A/M1B/M2 的餘額（百萬新台幣）跟年增率（%），組成項不存——跟 CPI 只存總指數與七大類、不存
+/// 81 個細項是同一種取捨。年增率在資料起始的第一年是 "-"（沒有前一年可比），存 null 不是 0。
+model MonthlyMonetaryAggregate {
+  year  Int // 西元年
+  month Int // 1-12
+
+  m1aAmount     Decimal  @map("m1a_amount") @db.Decimal(14, 0) // 百萬新台幣
+  m1aYoyPercent Decimal? @map("m1a_yoy_percent") @db.Decimal(8, 2)
+  m1bAmount     Decimal  @map("m1b_amount") @db.Decimal(14, 0)
+  m1bYoyPercent Decimal? @map("m1b_yoy_percent") @db.Decimal(8, 2)
+  m2Amount      Decimal  @map("m2_amount") @db.Decimal(14, 0)
+  m2YoyPercent  Decimal? @map("m2_yoy_percent") @db.Decimal(8, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([year, month])
+  @@map("monthly_monetary_aggregate")
+  @@schema("public")
+}
+
+/// 新台幣兌美元即期匯率日資料，由 /api/ingest/daily-usd-twd-rate 觸發向央行統計資料庫 API
+/// （FileName=EG51D01en，"31.Foreign Exchange Rates -A.Spot Exchange Rates ... By Period" 日頻率版本）
+/// 抓取。代碼表上另一個 BP01D01en「NTD-USD Exchange Rates」是停更序列（只到 2012-05-31，2026-09-21
+/// 實測），不能用。
+///
+/// 這份雖然是逐日一列，但 CBC 是隨《金融統計月報》按月批次補上（08-27 更新到 07-31），所以
+/// **日資料、落後約一個月**——適合歷史上跟大盤日線對照，不是即時報價。單位是「每 1 美元兌新台幣
+/// 元」（32.292 代表 1 USD = 32.292 TWD）。interbankClosingRate 是台北外匯市場收盤價，也是一般報導
+/// 引用的那個數字；bankBuying/SellingRate 是銀行對客戶的買/賣匯。三欄各有零星缺值（收盤價 24 天、
+/// 買賣匯各 5 天），存 null；同一份回應裡的「收盤價日平均」欄整份全是 "-"、遠期信用狀融通利率跟匯率
+/// 無關，都不存。
+model DailyUsdTwdRate {
+  tradeDate DateTime @map("trade_date") @db.Date
+
+  bankBuyingRate       Decimal? @map("bank_buying_rate") @db.Decimal(8, 3)
+  bankSellingRate      Decimal? @map("bank_selling_rate") @db.Decimal(8, 3)
+  interbankClosingRate Decimal? @map("interbank_closing_rate") @db.Decimal(8, 3)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([tradeDate])
+  @@map("daily_usd_twd_rate")
+  @@schema("public")
+}
+
 /// 消費者物價基本分類指數(CPI)月資料，由 /api/ingest/monthly-cpi 觸發向主計總處固定路徑統計檔案
 /// （pr0101a1m.xml，無正式 REST API）抓取。原始檔案有 81 個細項子分類（例如「米類及其製品」細到
 /// 菜籃子等級），這裡只收「總指數」跟七大類指數（category 欄位），理由跟用途見
