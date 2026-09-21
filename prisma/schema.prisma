@@ -29,6 +29,34 @@ model MonthlyGovBondYield10y {
   @@schema("public")
 }
 
+/// 央行政策利率的「調整事件」序列，由 /api/ingest/cbc-policy-rate 觸發向央行統計資料庫 API
+/// （FileName=EG28D01en，"29.Interest Rates -A.Rates of Central Bank By Period"，日頻率版本）抓取。
+/// 這份「日資料」實際上不是每日快照——CBC 只在利率有調整的生效日才出一列（2026-09-21 實測整份
+/// 回應只有 77 列，1989-04-01 起），所以每一列就是一次央行理監事會升/降息決議的生效日，用途是
+/// 疊在股價上看「升息/降息當下市場反應」這種事件研究，effectiveDate 就是事件日。
+///
+/// 三個欄位對應 CBC 三種政策利率：discountRate 重貼現率（央行升降息新聞裡講的「那個」基準利率，
+/// 通常一次調 12.5bp）、collateralAccommodationRate 擔保放款融通利率、unsecuredAccommodationRate
+/// 短期融通利率（無擔保），三者同日同步調整。存的是百分比數字（2.000 代表 2.000%）。
+///
+/// 刻意不另外存月頻率版本（EG2AM01en）——月資料只是把這個階梯函數依月重新取樣，任何需要「某月
+/// 利率是多少」的查詢都能從本表 `effectiveDate <= 該月` 取最後一列推出來，存兩份只會多一個要保持
+/// 一致的地方。
+model CbcPolicyRate {
+  effectiveDate DateTime @map("effective_date") @db.Date // 利率調整生效日（CBC 回應的期間字串 YYYYMMDD）
+
+  discountRate                Decimal @map("discount_rate") @db.Decimal(8, 4)
+  collateralAccommodationRate Decimal @map("collateral_accommodation_rate") @db.Decimal(8, 4)
+  unsecuredAccommodationRate  Decimal @map("unsecured_accommodation_rate") @db.Decimal(8, 4)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([effectiveDate])
+  @@map("cbc_policy_rate")
+  @@schema("public")
+}
+
 /// 消費者物價基本分類指數(CPI)月資料，由 /api/ingest/monthly-cpi 觸發向主計總處固定路徑統計檔案
 /// （pr0101a1m.xml，無正式 REST API）抓取。原始檔案有 81 個細項子分類（例如「米類及其製品」細到
 /// 菜籃子等級），這裡只收「總指數」跟七大類指數（category 欄位），理由跟用途見
