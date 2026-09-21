@@ -107,3 +107,21 @@ header or `task_secret` query param) and are rate-limited to one trigger per
 dataset per 60s — see `src/shared/middleware.ts` / `src/shared/rateLimiter.ts`.
 Query routes under `/api/query/*` are unprotected (read-only, not
 externally-triggered fetches).
+
+## Cloud Scheduler
+
+Ingest endpoints are triggered by Cloud Scheduler jobs, managed as code the
+same way oingg-twse-ts / oingg-sitca-ts do it: `scripts/scheduler.config.ts`
+is the single source of truth (job name / path / cron), and
+`scripts/reconcileScheduler.ts` diffs it against what's actually on Cloud
+Scheduler and applies the difference.
+
+```
+pnpm scheduler:check    # dry run — report drift, warn about same-minute collisions
+pnpm scheduler:apply    # create missing jobs / update mismatched ones
+```
+
+Both need `gcloud auth login` and the active gcloud project set to gov-ts's
+project. Jobs found on Cloud Scheduler but not in the config are only warned
+about, never deleted. Rationale for the chosen time window and per-job
+frequency lives in the config file's header comment.

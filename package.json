@@ -11,7 +11,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "rimraf dist && tsc && tsc-alias",
     "postinstall": "prisma generate",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "scheduler:check": "tsx scripts/reconcileScheduler.ts",
+    "scheduler:apply": "tsx scripts/reconcileScheduler.ts --apply"
   },
   "keywords": [],
   "author": "",
