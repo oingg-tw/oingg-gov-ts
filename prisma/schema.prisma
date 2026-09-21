@@ -134,14 +134,18 @@ model MonthlyCpi {
   @@schema("public")
 }
 
-/// 國民所得統計－GDP貢獻度－依支出分季資料，由 /api/ingest/quarterly-gdp（尚未實作，先建表避免卡到
-/// 其他 agent）觸發向主計總處固定路徑統計檔案（na8102a7q.xml，跟 monthly_cpi 同一種 DataSet/Obs
-/// XML 格式，見 adapters/dgbas/client.ts）抓取。官方原始檔案只有 12 個項目（不像 CPI 有 81 個細項
-/// 要篩選），全部保留：經濟成長率本身，加上「國內需求」「國外淨需求」兩個支出面向底下各自的小計跟
-/// 細項（民間消費/政府消費/固定資本形成〈又細分民間/公營/政府〉/存貨變動/進出口）。跟 monthly_cpi
-/// 一樣，contributionPoints（原始值，百分點貢獻度）跟 yoyChangePercent（年增率%）是官方回應裡同一個
-/// Item 的兩種數值，合併存成同一列。category 值見 quarterlyGdp/types.ts 的 GdpCategory（domain 尚未
-/// 建立時，這份 schema 註解是唯一的權威說明，之後補 domain 程式碼時要對得上）。
+/// 國民所得統計－GDP貢獻度－依支出分季資料，由 /api/ingest/quarterly-gdp 觸發向主計總處固定路徑
+/// 統計檔案（na8102a7q.xml，跟 monthly_cpi 同一種 DataSet/Obs XML 格式，見 adapters/dgbas/client.ts）
+/// 抓取。官方原始檔案只有 12 個項目（不像 CPI 有 81 個細項要篩選），全部保留：經濟成長率本身，加上
+/// 「國內需求」「國外淨需求」兩個支出面向底下各自的小計跟細項（民間消費/政府消費/固定資本形成〈又細分
+/// 民間/公營/政府〉/存貨變動/進出口）。category 值見 quarterlyGdp/types.ts 的 GdpCategory。
+///
+/// 欄位語意（2026-09-22 用真實回應核對，analysis-ts 接端點時發現的陷阱）：這張表是「貢獻度」表，
+/// 12 個項目的 contributionPoints 全是百分點——`growth_rate` 那列的 contributionPoints **就是經濟
+/// 成長率本身**（= 國內需求小計 + 國外淨需求小計，2026Q1：4.84 + 10.59 = 15.43），不是某個東西的
+/// 貢獻。而 yoyChangePercent 是主計總處對「百分點數字本身」再機械地算一次年增率（例如國外淨需求
+/// 2026Q1 = 1757.89%），對 12 個項目都沒有分析意義，這裡照存只是忠實保留原始回應，**export view 不
+/// 輸出這欄**（見 20260922 的 migration），下游不該拿它畫圖。
 model QuarterlyGdp {
   year     Int // 西元年
   quarter  Int // 1-4
