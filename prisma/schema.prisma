@@ -111,6 +111,26 @@ model DailyUsdTwdRate {
   @@schema("public")
 }
 
+/// 美國 GNP 隱含物價平減指數季資料，由 /api/ingest/quarterly-us-gnp-deflator 觸發向 FRED 固定路徑 CSV
+/// （fredgraph.csv?id=GNPDEF，見 adapters/fred/client.ts）抓取。gov-ts 第一個非台灣來源（2026-09-22
+/// 使用者裁定）。用途：analysis-ts 的 Ohlson (1980) O-Score，SIZE 變數原文定義是 log(總資產 ÷ GNP 物價
+/// 指數)、指數以 1968 年 = 100，之前直接用新台幣千元總資產取 log，幣別跟物價水準差讓全市場 O-Score
+/// 系統性偏低；修正要靠這個序列跟 daily_usd_twd_rate。存 FRED 原值（2017 = 100），換基期到 1968 由
+/// 下游做。每次 ingest 整批刪除重建（BEA 修正值會回頭改歷史，見 service.ts）。
+model QuarterlyUsGnpDeflator {
+  year    Int // 西元年
+  quarter Int // 1-4
+
+  indexValue Decimal @map("index_value") @db.Decimal(10, 3) // 2017 = 100
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([year, quarter])
+  @@map("quarterly_us_gnp_deflator")
+  @@schema("public")
+}
+
 /// 消費者物價基本分類指數(CPI)月資料，由 /api/ingest/monthly-cpi 觸發向主計總處固定路徑統計檔案
 /// （pr0101a1m.xml，無正式 REST API）抓取。原始檔案有 81 個細項子分類（例如「米類及其製品」細到
 /// 菜籃子等級），這裡只收「總指數」跟七大類指數（category 欄位），理由跟用途見

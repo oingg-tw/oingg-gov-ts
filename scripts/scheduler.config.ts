@@ -60,6 +60,9 @@ export const schedulerConfig = {
     { name: 'monthly-monetary-aggregate-monthly', path: '/api/ingest/monthly-monetary-aggregate', schedule: '37 3 5 * *' },
     { name: 'daily-usd-twd-rate-monthly', path: '/api/ingest/daily-usd-twd-rate', schedule: '42 3 5 * *' },
     { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '2 5 * * *' },
+    // FRED（美國聯準會）——BEA 每月底發布/修正 GDP，FRED 當天更新，每月 5 日抓一次；這支每次整批重建
+    // （見 quarterlyUsGnpDeflator/service.ts），所以修正值自然進來。
+    { name: 'quarterly-us-gnp-deflator-monthly', path: '/api/ingest/quarterly-us-gnp-deflator', schedule: '47 3 5 * *' },
     // 主計總處固定路徑 XML（ws.dgbas.gov.tw）
     { name: 'monthly-cpi-monthly', path: '/api/ingest/monthly-cpi', schedule: '7 3 10 * *' },
     { name: 'monthly-unemployment-rate-monthly', path: '/api/ingest/monthly-unemployment-rate', schedule: '12 3 23 * *' },
