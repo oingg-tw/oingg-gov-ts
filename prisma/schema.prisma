@@ -159,6 +159,94 @@ model MonthlyStockMarketSummary {
   @@schema("public")
 }
 
+/// 跨國人力仲介公司許可名冊，由 /api/ingest/labor-broker-license 觸發向勞動部開放資料 CSV
+/// （data.gov.tw/dataset/6682）抓取。這是「目前全部許可證」的現況快照，每次 ingest 整批重建。
+/// 關鍵欄位是 taxId——有統編才能跟財政部稅籍登記檔（LaborBrokerTaxRegistration）join，查出
+/// 「稅籍登記為移工仲介、但不在這份許可名冊上」的業者，見 export.labor_broker_cross_check。
+/// 主鍵用許可證號不是統編：同一家公司可能有多張許可證（換證、不同業務別）。
+model LaborBrokerLicense {
+  licenseNo    String @id @map("license_no") // 正規化後（去前導零），跟評鑑資料的 join key
+  rawLicenseNo String @map("raw_license_no") // 原始補零格式，例如 "0002" 或換證的 "0002-1"
+
+  agencyName        String  @map("agency_name")
+  address           String
+  phone             String
+  responsiblePerson String  @map("responsible_person")
+  taxId             String? @map("tax_id") // 8 碼統編；約 2% 的列空白或格式不合，存 null
+
+  professionalStaffCount Int? @map("professional_staff_count")
+  staffCount             Int? @map("staff_count")
+
+  licenseStartDate    DateTime? @map("license_start_date") @db.Date
+  licenseEndDate      DateTime? @map("license_end_date") @db.Date
+  suspensionStartDate DateTime? @map("suspension_start_date") @db.Date
+  suspensionEndDate   DateTime? @map("suspension_end_date") @db.Date
+  expectedResumeDate  DateTime? @map("expected_resume_date") @db.Date
+  terminatedDate      DateTime? @map("terminated_date") @db.Date
+  revokedDate         DateTime? @map("revoked_date") @db.Date
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([taxId])
+  @@map("labor_broker_license")
+  @@schema("public")
+}
+
+/// 私立就業服務機構（跨國人力仲介）年度評鑑結果，由 /api/ingest/labor-broker-evaluation 觸發向
+/// 勞動部開放資料 CSV（data.gov.tw/dataset/9332）抓取。year 是西元年（原始檔是民國年，parser 轉換）；
+/// 目前有 2019/2020/2022/2023/2024——2021 年沒有辦評鑑，跳號是資料本身就這樣，不是抓漏。
+/// violationScore（違規處分）可能是負數。licenseNo 已正規化成跟 LaborBrokerLicense 同一種格式。
+model LaborBrokerEvaluation {
+  year      Int // 西元年
+  licenseNo String @map("license_no")
+
+  companyName String @map("company_name")
+  region      String // 例如「桃園市桃園區」
+  address     String
+
+  qualityScore         Decimal? @map("quality_score") @db.Decimal(8, 2)
+  violationScore       Decimal? @map("violation_score") @db.Decimal(8, 2) // 可為負數
+  customerServiceScore Decimal? @map("customer_service_score") @db.Decimal(8, 2)
+  otherScore           Decimal? @map("other_score") @db.Decimal(8, 2)
+  totalScore           Decimal? @map("total_score") @db.Decimal(8, 2)
+
+  hasSuspension     Boolean @map("has_suspension") // 停業處分及申報暫停營業
+  hasMajorViolation Boolean @map("has_major_violation") // 重大違法行為
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([year, licenseNo])
+  @@index([licenseNo])
+  @@map("labor_broker_evaluation")
+  @@schema("public")
+}
+
+/// 財政部稅籍登記檔裡登記為人力仲介/供應相關行業的業者，由 /api/ingest/labor-broker-tax-registration
+/// 觸發，串流整份《全國營業(稅籍)登記資料集》（322MB/171萬列）篩出來。只收總公司列。
+///
+/// 存在的理由：**稅籍行業代號是唯一能用公開資料指認「這家公司實際在做移工仲介」的欄位**。
+/// 2026-09-22 實測，登記 7810-11「移工仲介」的 1,026 家總公司裡，公司名稱不含「人力/仲介/就業」的
+/// 佔多數（漁業合作社、娛樂事業公司、管理顧問公司都有），光看名字或光查許可名冊都找不到它們。
+/// industryCode 的值域見 laborBrokerTaxRegistration/types.ts 的 LABOR_BROKER_INDUSTRY_CODES。
+model LaborBrokerTaxRegistration {
+  taxId        String @map("tax_id")
+  industryCode String @map("industry_code") // subclass 格式，例如 "7810-11"
+
+  businessName      String  @map("business_name")
+  address           String
+  isPrimaryIndustry Boolean @map("is_primary_industry") // true = 稅籍的「行業代號」主欄，false = 次要欄位
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([taxId, industryCode])
+  @@index([industryCode])
+  @@map("labor_broker_tax_registration")
+  @@schema("public")
+}
+
 /// 消費者物價基本分類指數(CPI)月資料，由 /api/ingest/monthly-cpi 觸發向主計總處固定路徑統計檔案
 /// （pr0101a1m.xml，無正式 REST API）抓取。原始檔案有 81 個細項子分類（例如「米類及其製品」細到
 /// 菜籃子等級），這裡只收「總指數」跟七大類指數（category 欄位），理由跟用途見
