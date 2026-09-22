@@ -131,6 +131,34 @@ model QuarterlyUsGnpDeflator {
   @@schema("public")
 }
 
+/// 上市股票市場月統計，由 /api/ingest/monthly-stock-market-summary 觸發向央行統計資料庫 API
+/// （FileName=EG27M01en，"28.Stock Market -B.Transactions of Listed Stock and Stock Price By Period"）
+/// 抓取。價值在於 avgTaiex：加權股價指數的**月平均**（1966 = 100），1987-05 起——twse-ts 的
+/// daily_taiex_index 只從 1999-01-05 起（TWSE 開放資料的起點），這份把大盤歷史往前推 12 年，而且跟
+/// gov-ts 其他總經指標同為月頻率，對照時不用重取樣。注意是月平均不是月底收盤價，畫在日線上會偏。
+/// 其餘五欄（上市家數、總面值、總市值、總成交值、日均成交值）是同一份回應附帶的市場規模統計，
+/// 一起存；金額單位百萬新台幣。年增率只存加權指數那一個（原始回應每欄都附年增率，交錯配對，見
+/// parser.ts），其餘下游自己算。avgDailyTradingValue 在 1987-1988 為 "-"，存 null。
+model MonthlyStockMarketSummary {
+  year  Int // 西元年
+  month Int // 1-12
+
+  listedCompanies      Int      @map("listed_companies")
+  totalParValue        Decimal  @map("total_par_value") @db.Decimal(14, 0)
+  totalMarketValue     Decimal  @map("total_market_value") @db.Decimal(14, 0)
+  totalTradingValue    Decimal  @map("total_trading_value") @db.Decimal(14, 0)
+  avgDailyTradingValue Decimal? @map("avg_daily_trading_value") @db.Decimal(14, 0)
+  avgTaiex             Decimal  @map("avg_taiex") @db.Decimal(10, 2)
+  avgTaiexYoyPercent   Decimal? @map("avg_taiex_yoy_percent") @db.Decimal(8, 3)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([year, month])
+  @@map("monthly_stock_market_summary")
+  @@schema("public")
+}
+
 /// 消費者物價基本分類指數(CPI)月資料，由 /api/ingest/monthly-cpi 觸發向主計總處固定路徑統計檔案
 /// （pr0101a1m.xml，無正式 REST API）抓取。原始檔案有 81 個細項子分類（例如「米類及其製品」細到
 /// 菜籃子等級），這裡只收「總指數」跟七大類指數（category 欄位），理由跟用途見
