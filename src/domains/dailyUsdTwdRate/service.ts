@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseDailyUsdTwdRate } from '@/domains/dailyUsdTwdRate/parser';
 import type { DailyUsdTwdRatePoint } from '@/domains/dailyUsdTwdRate/types';
@@ -51,9 +52,9 @@ export const ingestDailyUsdTwdRate = async (force = false): Promise<IngestDailyU
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.dailyUsdTwdRate.createMany({ data: points, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.dailyUsdTwdRate.createMany({ data: rows, skipDuplicates: true }), points);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

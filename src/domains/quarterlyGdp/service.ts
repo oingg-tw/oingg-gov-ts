@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchDgbasXml } from '@/adapters/dgbas/client';
 import { parseQuarterlyGdp } from '@/domains/quarterlyGdp/parser';
 import type { QuarterlyGdpPoint } from '@/domains/quarterlyGdp/types';
@@ -67,9 +68,9 @@ export const ingestQuarterlyGdp = async (force = false): Promise<IngestQuarterly
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.quarterlyGdp.createMany({ data, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.quarterlyGdp.createMany({ data: rows, skipDuplicates: true }), data);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

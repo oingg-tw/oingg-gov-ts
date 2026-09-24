@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchDgbasXml } from '@/adapters/dgbas/client';
 import { parseMonthlyCpi } from '@/domains/monthlyCpi/parser';
 import type { MonthlyCpiPoint } from '@/domains/monthlyCpi/types';
@@ -63,9 +64,9 @@ export const ingestMonthlyCpi = async (force = false): Promise<IngestMonthlyCpiR
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.monthlyCpi.createMany({ data, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.monthlyCpi.createMany({ data: rows, skipDuplicates: true }), data);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

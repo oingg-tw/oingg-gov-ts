@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseMonthlyGovBondYield10y } from '@/domains/govBondYield10y/parser';
 import type { MonthlyGovBondYield10yPoint } from '@/domains/govBondYield10y/types';
@@ -67,9 +68,9 @@ export const ingestMonthlyGovBondYield10y = async (force = false): Promise<Inges
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.monthlyGovBondYield10y.createMany({ data, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.monthlyGovBondYield10y.createMany({ data: rows, skipDuplicates: true }), data);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

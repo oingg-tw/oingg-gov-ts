@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseMonthlyStockMarketSummary } from '@/domains/monthlyStockMarketSummary/parser';
 import type { MonthlyStockMarketSummaryPoint } from '@/domains/monthlyStockMarketSummary/types';
@@ -53,9 +54,9 @@ export const ingestMonthlyStockMarketSummary = async (force = false): Promise<In
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.monthlyStockMarketSummary.createMany({ data: points, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.monthlyStockMarketSummary.createMany({ data: rows, skipDuplicates: true }), points);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchSitcaCsv } from '@/adapters/sitca/client';
 import { parseFundDailyNav } from '@/domains/fundDailyNav/parser';
 import type { FundDailyNavPoint } from '@/domains/fundDailyNav/types';
@@ -77,9 +78,9 @@ export const ingestFundDailyNav = async (force = false): Promise<IngestFundDaily
     fetchedCount = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.fundDailyNav.createMany({ data, skipDuplicates: true });
-    fetchedCount = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.fundDailyNav.createMany({ data: rows, skipDuplicates: true }), data);
+    fetchedCount = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points, sourceLastModified);

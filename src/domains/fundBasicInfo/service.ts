@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchSitcaCsv } from '@/adapters/sitca/client';
 import { parseFundBasicInfo } from '@/domains/fundBasicInfo/parser';
 import type { FundBasicInfoPoint } from '@/domains/fundBasicInfo/types';
@@ -86,9 +87,9 @@ export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasi
     fetchedCount = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.fundBasicInfo.createMany({ data, skipDuplicates: true });
-    fetchedCount = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.fundBasicInfo.createMany({ data: rows, skipDuplicates: true }), data);
+    fetchedCount = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points, sourceLastModified);

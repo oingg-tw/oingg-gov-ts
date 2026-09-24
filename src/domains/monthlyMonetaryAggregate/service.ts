@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseMonthlyMonetaryAggregate } from '@/domains/monthlyMonetaryAggregate/parser';
 import type { MonthlyMonetaryAggregatePoint } from '@/domains/monthlyMonetaryAggregate/types';
@@ -55,9 +56,9 @@ export const ingestMonthlyMonetaryAggregate = async (force = false): Promise<Ing
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.monthlyMonetaryAggregate.createMany({ data: points, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.monthlyMonetaryAggregate.createMany({ data: rows, skipDuplicates: true }), points);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

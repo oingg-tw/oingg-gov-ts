@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchBusinessCycleIndicatorCsv } from '@/adapters/ndc/client';
 import { parseMonthlyBusinessCycleIndicator } from '@/domains/monthlyBusinessCycleIndicator/parser';
 import type { MonthlyBusinessCycleIndicatorPoint } from '@/domains/monthlyBusinessCycleIndicator/types';
@@ -68,9 +69,9 @@ export const ingestMonthlyBusinessCycleIndicator = async (force = false): Promis
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.monthlyBusinessCycleIndicator.createMany({ data, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.monthlyBusinessCycleIndicator.createMany({ data: rows, skipDuplicates: true }), data);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

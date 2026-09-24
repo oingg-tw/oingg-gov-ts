@@ -42,7 +42,16 @@ export const ingestLaborBrokerEvaluation = async (): Promise<IngestLaborBrokerEv
     return { success: false, totalPoints: 0, error: error instanceof Error ? error.message : String(error) };
   }
 
-  await prisma.$transaction([prisma.laborBrokerEvaluation.deleteMany({}), prisma.laborBrokerEvaluation.createMany({ data: points })], { timeout: 30000 });
+  // 分批寫入，理由同 laborBrokerTaxRegistration（見 shared/createManyChunked.ts 的實測）。
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.laborBrokerEvaluation.deleteMany({});
+      for (let offset = 0; offset < points.length; offset += 500) {
+        await tx.laborBrokerEvaluation.createMany({ data: points.slice(offset, offset + 500) });
+      }
+    },
+    { timeout: 30000 }
+  );
 
   await recordIngestionRun('success', points, sourceLastModified);
   return { success: true, totalPoints: points.length };

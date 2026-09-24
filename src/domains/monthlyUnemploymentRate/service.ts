@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchDgbasXml } from '@/adapters/dgbas/client';
 import { parseMonthlyUnemploymentRate } from '@/domains/monthlyUnemploymentRate/parser';
 import type { MonthlyUnemploymentRatePoint } from '@/domains/monthlyUnemploymentRate/types';
@@ -58,9 +59,9 @@ export const ingestMonthlyUnemploymentRate = async (force = false): Promise<Inge
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.monthlyUnemploymentRate.createMany({ data, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.monthlyUnemploymentRate.createMany({ data: rows, skipDuplicates: true }), data);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);

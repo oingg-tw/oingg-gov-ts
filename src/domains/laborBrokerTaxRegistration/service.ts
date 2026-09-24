@@ -77,8 +77,16 @@ export const ingestLaborBrokerTaxRegistration = async (): Promise<IngestLaborBro
   }
 
   // 整批刪除重建：業者會歇業、會變更登記行業別，舊列必須消失，不能只做新增（同 laborBrokerLicense）。
+  // 分批寫入而不是整包 17,844 列一次送——這是 gov-ts 最大的單次 payload，而 Prisma 的保留量跟
+  // 單次批量成正比（見 shared/createManyChunked.ts 的實測）。這裡不能直接用那個 helper：要跟
+  // deleteMany 在同一個交易裡，所以改成 callback 形式自己迴圈。
   await prisma.$transaction(
-    [prisma.laborBrokerTaxRegistration.deleteMany({}), prisma.laborBrokerTaxRegistration.createMany({ data: points })],
+    async (tx) => {
+      await tx.laborBrokerTaxRegistration.deleteMany({});
+      for (let offset = 0; offset < points.length; offset += 500) {
+        await tx.laborBrokerTaxRegistration.createMany({ data: points.slice(offset, offset + 500) });
+      }
+    },
     { timeout: 30000 }
   );
 

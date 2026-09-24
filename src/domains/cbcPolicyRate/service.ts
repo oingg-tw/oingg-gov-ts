@@ -1,4 +1,5 @@
 import prisma from '@/adapters/prisma/index';
+import { createManyChunked } from '@/shared/createManyChunked';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseCbcPolicyRate } from '@/domains/cbcPolicyRate/parser';
 import type { CbcPolicyRatePoint } from '@/domains/cbcPolicyRate/types';
@@ -53,9 +54,9 @@ export const ingestCbcPolicyRate = async (force = false): Promise<IngestCbcPolic
     fetched = points.length;
     skipped = 0;
   } else {
-    const result = await prisma.cbcPolicyRate.createMany({ data: points, skipDuplicates: true });
-    fetched = result.count;
-    skipped = points.length - result.count;
+    const insertedCount = await createManyChunked((rows) => prisma.cbcPolicyRate.createMany({ data: rows, skipDuplicates: true }), points);
+    fetched = insertedCount;
+    skipped = points.length - insertedCount;
   }
 
   await recordIngestionRun('success', points);
