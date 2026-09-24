@@ -32,11 +32,12 @@
  * 拿掉資料庫呼叫只跑 fetch + parse 則完全平坦（12.9 / 12.9 / 13.0 MB）。所以保留在建構／傳送
  * 那個參數化查詢的路徑上。
  *
- * **機制完全未知。** 曾經懷疑是 node-postgres pool 裡每條連線各自保留一塊讀取 buffer，
- * 但那個假說目前是**未測**而不是已否證——2026-09-24 sitca-ts 用 pool max 做過實驗，看起來平台
- * 不隨 max 變動，後來查 `pg_stat_activity` 才發現 **max=10 跟 max=2 實際都只開 1 條連線**：
- * `pool.max` 是上限不是預先配置，循序 await 開不出第二條。兩組條件相同，所以那個結果對假說
- * 沒有判別力。要測它需要真正併發寫入（`Promise.all`）逼出多條連線。
+ * **機制完全未知。** 曾經懷疑是 node-postgres pool 裡每條連線各自保留一塊讀取 buffer，但那個
+ * 假說是**未測**——sitca-ts 2026-09-24 試過用 `pool.max` 10 vs 2 做判別，同批量下 RSS 只差 13MB，
+ * 但那個實驗對假說沒有判別力：`pool.max` 是上限不是預先配置，而連線又是走 Neon 的 pooled endpoint
+ * （pgbouncer transaction mode，N 條 client 連線可以多工到少數後端連線），所以無從得知兩組實際
+ * 各開了幾條 client 連線。**這個限制對 gov-ts 一樣適用**，我們的 DATABASE_URL 也是 -pooler。
+ * 要判別得在 client 端直接讀 `pool.totalCount`，並用併發寫入逼出多條連線——兩者都還沒有人做。
  *
  * 飽和為什麼由累積呼叫次數決定，同樣沒有解釋。
  *
