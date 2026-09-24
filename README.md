@@ -125,3 +125,44 @@ Both need `gcloud auth login` and the active gcloud project set to gov-ts's
 project. Jobs found on Cloud Scheduler but not in the config are only warned
 about, never deleted. Rationale for the chosen time window and per-job
 frequency lives in the config file's header comment.
+
+## Alerting
+
+`export.ingestion_runs` cannot tell you a job failed. It is written when an ingest
+completes, and Cloud Scheduler retries failures (`maxRetryAttempts=3`) — so a first
+attempt that OOMs, followed by a retry that succeeds in a fresh container, leaves only
+a `success` row. oingg-sitca-ts OOMed daily for five days in September 2026 with a
+table that looked clean throughout.
+
+The one place a failed first attempt shows up is Cloud Run's 5xx request count. Since
+every `/api/ingest/*` route is reachable only by Cloud Scheduler with an OIDC token,
+any 5xx means a scheduled job failed.
+
+`scripts/alert-policy-ingest-failures.json` holds that policy. To apply it:
+
+```
+# 1. Create an email notification channel (once per project)
+gcloud beta monitoring channels create --project=oingg-gov \
+  --display-name="gov-ts alerts" --type=email \
+  --channel-labels=email_address=<your-email>
+
+# 2. Note the returned channel name, then create the policy
+gcloud alpha monitoring policies create --project=oingg-gov \
+  --policy-from-file=scripts/alert-policy-ingest-failures.json \
+  --notification-channels=<channel-name-from-step-1>
+
+# Updating it later (get the policy id from `policies list`)
+gcloud alpha monitoring policies update <policy-id> --project=oingg-gov \
+  --policy-from-file=scripts/alert-policy-ingest-failures.json
+```
+
+Without `--notification-channels` the policy still fires but only into the Cloud
+Monitoring console, which nobody looks at — that is the same blind spot in a new place.
+
+Two gaps this does **not** cover:
+
+- **A job that returns 200 while writing stale data.** The source can serve last
+  month's file with a 200; nothing 5xxs. `export.ingestion_runs.data_date` is where
+  that shows, but it needs a query, not a Cloud Monitoring metric.
+- **A job that stopped being scheduled at all.** No requests means no 5xx. `pnpm
+  scheduler:check` compares intent against Cloud Scheduler and is the thing to run.

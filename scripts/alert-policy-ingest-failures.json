@@ -1,0 +1,34 @@
+{
+  "displayName": "gov-ts ingest 5xx (Cloud Scheduler job failure)",
+  "documentation": {
+    "content": "oingg-gov-ts 的 /api/ingest/* 只由 Cloud Scheduler 帶 OIDC token 觸發，所以任何 5xx 都等於某支排程 job 失敗：來源端抓取失敗、資料庫寫入失敗，或 Cloud Run OOM。\n\n**為什麼一定要靠這個 metric**：export.ingestion_runs 只有在 ingest 跑完時才寫一筆，而 Cloud Scheduler 失敗會自動 retry（maxRetryAttempts=3）。第一次嘗試 OOM 死掉、retry 在新容器補跑成功，那張表就只看得到 success——第一次失敗唯一看得到的地方就是這個 5xx 計數。oingg-sitca-ts 2026-09 就是這樣連續五天每天 OOM 沒人發現，補了這個告警才抓到。\n\n**處理步驟**：\n1. Cloud Logging 查 `resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"oingg-gov-ts\" AND httpRequest.status>=500`，找出是哪一個 /api/ingest/<dataset>\n2. 看同一分鐘有沒有 `Ineffective mark-compacts`、`Uncaught signal: 6`、或 `Memory limit of ... exceeded` —— 那是 OOM，不是來源端問題\n3. 多數來源（CBC/DGBAS/NDC/FRED）每次都回傳整段歷史，漏抓一天補跑即可。**例外是 fund_daily_nav**：SITCA 的 nav.csv 只有 2 個交易日的滾動窗口，連續漏兩天以上就會有永久缺口。",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "5xx response from oingg-gov-ts",
+      "conditionThreshold": {
+        "filter": "resource.type = \"cloud_run_revision\" AND resource.label.service_name = \"oingg-gov-ts\" AND metric.type = \"run.googleapis.com/request_count\" AND metric.label.response_code_class = \"5xx\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "60s",
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "combiner": "OR",
+  "alertStrategy": {
+    "autoClose": "3600s"
+  },
+  "enabled": true
+}
