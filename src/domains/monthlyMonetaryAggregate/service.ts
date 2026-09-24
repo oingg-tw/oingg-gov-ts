@@ -51,7 +51,7 @@ export const ingestMonthlyMonetaryAggregate = async (force = false): Promise<Ing
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyMonetaryAggregate.deleteMany({}), prisma.monthlyMonetaryAggregate.createMany({ data: points })]);
+    await prisma.$transaction([prisma.monthlyMonetaryAggregate.deleteMany({}), prisma.monthlyMonetaryAggregate.createMany({ data: points })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

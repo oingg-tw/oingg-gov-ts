@@ -52,7 +52,7 @@ export const ingestQuarterlyUsGnpDeflator = async (): Promise<IngestQuarterlyUsG
     return { success: false, totalPoints: 0, error: error instanceof Error ? error.message : String(error) };
   }
 
-  await prisma.$transaction([prisma.quarterlyUsGnpDeflator.deleteMany({}), prisma.quarterlyUsGnpDeflator.createMany({ data: points })]);
+  await prisma.$transaction([prisma.quarterlyUsGnpDeflator.deleteMany({}), prisma.quarterlyUsGnpDeflator.createMany({ data: points })], { timeout: 30000 });
 
   await recordIngestionRun('success', points, sourceLastModified);
   return { success: true, totalPoints: points.length };

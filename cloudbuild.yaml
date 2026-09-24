@@ -54,8 +54,18 @@ steps:
       # 要下載 322MB）遠超 Cloud Run 預設的 300 秒逾時，設到上限 3600 秒。Request-based billing
       # （預設、沒有 --no-cpu-throttling）就夠：這個服務沒有請求之外還需要跑的背景工作。
       - --timeout=3600
+      # 記憶體：兩個上限一定要一起設，只調一邊等於把一種 OOM 換成另一種（2026-09-24 sitca-ts
+      # 實測並廣播）。--memory 管容器 RSS；NODE_OPTIONS 的 --max-old-space-size 管 V8 old-space，
+      # 而 V8 預設是從容器記憶體推算（約一半），所以調大 --memory 不會讓 heap 跟著變大——
+      # sitca-ts 的 1Gi 容器在只用到 55% 時就因為 heap 撞到 523MB 而死。
+      #
+      # 這裡原本兩個都沒設，等於吃 Cloud Run 預設 512Mi、heap 天花板約 256MB。gov-ts 本機實測
+      # （2026-09-24）：monthly-unemployment-rate 這支 12,055 列的 job 連跑三次，RSS 就到 476MB，
+      # 而排程是 8 支 job 每 5 分鐘一支、同一個暖 instance 連續吃下來，記憶體只升不降。
+      # 768 + 2Gi 是 sitca-ts 實測穩定的組合，直接沿用。
+      - --memory=2Gi
       - --set-secrets=DATABASE_URL=gov-database-url:latest,TASK_SECRET=gov-task-secret:latest
-      - --set-env-vars=NODE_ENV=production
+      - --set-env-vars=NODE_ENV=production,NODE_OPTIONS=--max-old-space-size=768
       - --quiet
 
 images:

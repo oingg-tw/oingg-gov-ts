@@ -63,7 +63,7 @@ export const ingestMonthlyGovBondYield10y = async (force = false): Promise<Inges
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyGovBondYield10y.deleteMany({}), prisma.monthlyGovBondYield10y.createMany({ data })]);
+    await prisma.$transaction([prisma.monthlyGovBondYield10y.deleteMany({}), prisma.monthlyGovBondYield10y.createMany({ data })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

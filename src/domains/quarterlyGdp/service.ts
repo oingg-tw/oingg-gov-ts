@@ -63,7 +63,7 @@ export const ingestQuarterlyGdp = async (force = false): Promise<IngestQuarterly
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.quarterlyGdp.deleteMany({}), prisma.quarterlyGdp.createMany({ data })]);
+    await prisma.$transaction([prisma.quarterlyGdp.deleteMany({}), prisma.quarterlyGdp.createMany({ data })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

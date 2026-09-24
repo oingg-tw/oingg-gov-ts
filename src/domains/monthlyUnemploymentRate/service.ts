@@ -54,7 +54,7 @@ export const ingestMonthlyUnemploymentRate = async (force = false): Promise<Inge
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyUnemploymentRate.deleteMany({}), prisma.monthlyUnemploymentRate.createMany({ data })]);
+    await prisma.$transaction([prisma.monthlyUnemploymentRate.deleteMany({}), prisma.monthlyUnemploymentRate.createMany({ data })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

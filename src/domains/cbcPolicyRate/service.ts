@@ -49,7 +49,7 @@ export const ingestCbcPolicyRate = async (force = false): Promise<IngestCbcPolic
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.cbcPolicyRate.deleteMany({}), prisma.cbcPolicyRate.createMany({ data: points })]);
+    await prisma.$transaction([prisma.cbcPolicyRate.deleteMany({}), prisma.cbcPolicyRate.createMany({ data: points })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

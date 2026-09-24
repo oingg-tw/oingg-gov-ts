@@ -73,7 +73,7 @@ export const ingestFundDailyNav = async (force = false): Promise<IngestFundDaily
   let fetchedCount: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.fundDailyNav.deleteMany({}), prisma.fundDailyNav.createMany({ data })]);
+    await prisma.$transaction([prisma.fundDailyNav.deleteMany({}), prisma.fundDailyNav.createMany({ data })], { timeout: 30000 });
     fetchedCount = points.length;
     skipped = 0;
   } else {

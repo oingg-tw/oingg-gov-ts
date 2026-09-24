@@ -59,7 +59,7 @@ export const ingestMonthlyCpi = async (force = false): Promise<IngestMonthlyCpiR
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyCpi.deleteMany({}), prisma.monthlyCpi.createMany({ data })]);
+    await prisma.$transaction([prisma.monthlyCpi.deleteMany({}), prisma.monthlyCpi.createMany({ data })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

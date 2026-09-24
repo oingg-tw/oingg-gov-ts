@@ -49,7 +49,7 @@ export const ingestMonthlyStockMarketSummary = async (force = false): Promise<In
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyStockMarketSummary.deleteMany({}), prisma.monthlyStockMarketSummary.createMany({ data: points })]);
+    await prisma.$transaction([prisma.monthlyStockMarketSummary.deleteMany({}), prisma.monthlyStockMarketSummary.createMany({ data: points })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

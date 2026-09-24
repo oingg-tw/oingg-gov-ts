@@ -64,7 +64,7 @@ export const ingestMonthlyBusinessCycleIndicator = async (force = false): Promis
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyBusinessCycleIndicator.deleteMany({}), prisma.monthlyBusinessCycleIndicator.createMany({ data })]);
+    await prisma.$transaction([prisma.monthlyBusinessCycleIndicator.deleteMany({}), prisma.monthlyBusinessCycleIndicator.createMany({ data })], { timeout: 30000 });
     fetched = points.length;
     skipped = 0;
   } else {

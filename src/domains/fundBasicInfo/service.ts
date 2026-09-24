@@ -82,7 +82,7 @@ export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasi
   let fetchedCount: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.fundBasicInfo.deleteMany({}), prisma.fundBasicInfo.createMany({ data })]);
+    await prisma.$transaction([prisma.fundBasicInfo.deleteMany({}), prisma.fundBasicInfo.createMany({ data })], { timeout: 30000 });
     fetchedCount = points.length;
     skipped = 0;
   } else {
