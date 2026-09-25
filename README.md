@@ -138,7 +138,10 @@ The one place a failed first attempt shows up is Cloud Run's 5xx request count. 
 every `/api/ingest/*` route is reachable only by Cloud Scheduler with an OIDC token,
 any 5xx means a scheduled job failed.
 
-`scripts/alert-policy-ingest-failures.json` holds that policy. To apply it:
+`scripts/alert-policy-ingest-failures.json` holds that policy. **It is applied**
+(2026-09-25) as `gov-ts ingest 5xx (Cloud Scheduler job failure)`, notifying
+`ian.chu@oingg.com` — the account this project deploys under, and the address already
+in `OUTBOUND_USER_AGENT`. The commands below recreate or update it:
 
 ```
 # 1. Create an email notification channel (once per project)
@@ -166,3 +169,21 @@ Two gaps this does **not** cover:
   that shows, but it needs a query, not a Cloud Monitoring metric.
 - **A job that stopped being scheduled at all.** No requests means no 5xx. `pnpm
   scheduler:check` compares intent against Cloud Scheduler and is the thing to run.
+
+## Production memory headroom (measured 2026-09-25)
+
+The deployed revision runs on Cloud Run's **512Mi** default with `concurrency=80` and no
+`NODE_OPTIONS`, which puts V8's old-space ceiling near 256MB. Measured over 14 days,
+peak container memory was **75.8% — about 388MB**. No OOM signal and no 5xx in 30 days.
+
+The reason it has survived is that the load is far thinner than the schedule suggests.
+Only two jobs run daily (`cbc-policy-rate` 05:02 and `fund-daily-nav` 22:02, seven hours
+apart, so each gets a cold instance). Everything else is release-date aligned and lands
+on different days of the month.
+
+**The exception is the 5th**, when five jobs fire between 03:02 and 03:52 — close enough
+to share one warm instance, which is where memory ratchets and where sitca-ts died at 93%
+of 1Gi. Four of those five were added on 2026-09-21/22, so that window **has not run yet**;
+the first time will be 2026-10-05. The `--memory=2Gi` + `--max-old-space-size=768` change
+and the 500-row chunking in `src/shared/createManyChunked.ts` are both committed but
+**not deployed** — they need to ship before then.
