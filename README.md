@@ -170,20 +170,29 @@ Two gaps this does **not** cover:
 - **A job that stopped being scheduled at all.** No requests means no 5xx. `pnpm
   scheduler:check` compares intent against Cloud Scheduler and is the thing to run.
 
-## Production memory headroom (measured 2026-09-25)
+## Production memory headroom
 
-The deployed revision runs on Cloud Run's **512Mi** default with `concurrency=80` and no
-`NODE_OPTIONS`, which puts V8's old-space ceiling near 256MB. Measured over 14 days,
-peak container memory was **75.8% — about 388MB**. No OOM signal and no 5xx in 30 days.
+Measured on revision 00018 (2Gi, `--max-old-space-size=768`, 500-row chunking), 2026-09-25:
+`labor-broker-tax-registration` (17,844 rows behind a 322MB stream) and
+`monthly-unemployment-rate` (12,055 rows) triggered back to back onto one warm instance —
+deliberately heavier than any scheduled window — **peaked at 14.0%, about 287MB of 2Gi**.
+Both returned 200 with no warning logged.
 
-The reason it has survived is that the load is far thinner than the schedule suggests.
-Only two jobs run daily (`cbc-policy-rate` 05:02 and `fund-daily-nav` 22:02, seven hours
-apart, so each gets a cold instance). Everything else is release-date aligned and lands
-on different days of the month.
+For contrast, the previous revision ran on Cloud Run's 512Mi default with no `NODE_OPTIONS`
+(V8 old-space ceiling near 256MB) and peaked at **75.8%, about 388MB**, on a *single* job
+per cold instance. So the fix cut the peak by ~100MB while carrying a heavier load, and
+headroom went from roughly a quarter to roughly six sevenths.
 
-**The exception is the 5th**, when five jobs fire between 03:02 and 03:52 — close enough
-to share one warm instance, which is where memory ratchets and where sitca-ts died at 93%
-of 1Gi. Four of those five were added on 2026-09-21/22, so that window **has not run yet**;
-the first time will be 2026-10-05. The `--memory=2Gi` + `--max-old-space-size=768` change
-and the 500-row chunking in `src/shared/createManyChunked.ts` are both committed but
-**not deployed** — they need to ship before then.
+Why the old config survived at all: the load is thinner than the schedule reads. Only two
+jobs run daily (`cbc-policy-rate` 05:02 and `fund-daily-nav` 22:02, seven hours apart, each
+on its own cold instance), and the rest are release-date aligned across different days of
+the month. The one dense window is the 5th, when five jobs fire between 03:02 and 03:52 and
+share a warm instance — four of the five were added on 2026-09-21/22, so it first runs on
+2026-10-05. Those five carry ~21,000 rows between them, fewer than the ~30,000 in the
+2026-09-25 test above, so that window now has ample margin.
+
+`concurrency` is still Cloud Run's default of 80. In practice it is always 1 — jobs are
+minutes apart and each ingest route holds a per-dataset in-flight lock — but that is
+circumstance, not a guarantee. Setting it to 1 explicitly would be the prerequisite for
+tuning the pg pool size, which is currently not worth doing (see
+`src/shared/createManyChunked.ts`).
