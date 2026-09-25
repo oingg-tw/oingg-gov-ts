@@ -32,14 +32,34 @@
  * 拿掉資料庫呼叫只跑 fetch + parse 則完全平坦（12.9 / 12.9 / 13.0 MB）。所以保留在建構／傳送
  * 那個參數化查詢的路徑上。
  *
- * **機制完全未知。** 曾經懷疑是 node-postgres pool 裡每條連線各自保留一塊讀取 buffer，但那個
- * 假說是**未測**——sitca-ts 2026-09-24 試過用 `pool.max` 10 vs 2 做判別，同批量下 RSS 只差 13MB，
- * 但那個實驗對假說沒有判別力：`pool.max` 是上限不是預先配置，而連線又是走 Neon 的 pooled endpoint
- * （pgbouncer transaction mode，N 條 client 連線可以多工到少數後端連線），所以無從得知兩組實際
- * 各開了幾條 client 連線。**這個限制對 gov-ts 一樣適用**，我們的 DATABASE_URL 也是 -pooler。
- * 要判別得在 client 端直接讀 `pool.totalCount`，並用併發寫入逼出多條連線——兩者都還沒有人做。
+ * ## 機制：定位到 Prisma 建構參數那一段
  *
- * 飽和為什麼由累積呼叫次數決定，同樣沒有解釋。
+ * sitca-ts 2026-09-25 跑了 tpex-ts 提的對照實驗：同一份 69,139 列、同樣分批 500、同樣實際寫入
+ * 0 列、乾淨 process 三輪，只把寫入方式換掉：
+ *
+ * ```
+ *                    createMany      $executeRaw 多列 INSERT
+ * 平台 heap（GC 後）     123.6              70.6
+ * 平台 RSS               579.1             317.3
+ * ```
+ *
+ * **兩者都收斂，但 createMany 的平台高 3.2 倍。** 所以 retainer 在「Prisma 把整批 args 建成 query
+ * engine 參數結構」那一段，不在 pool、也不在 driver。tpex-ts 同一個 stack、11,289 列走 `$executeRaw`
+ * 實測零棘輪，獨立佐證同一個方向。
+ *
+ * 曾經懷疑過的 per-connection 讀取 buffer 假說到最後是**未測**（不是否證）：用 `pool.max` 10 vs 2
+ * 做的實驗沒有判別力——`pool.max` 是上限不是預先配置，而連線走 Neon 的 pooled endpoint
+ * （pgbouncer transaction mode 會把 N 條 client 連線多工到少數後端連線），所以無從得知兩組實際各開
+ * 幾條。**這個限制對 gov-ts 一樣適用**，我們的 DATABASE_URL 也是 -pooler。不過既然保留已經定位到
+ * Prisma 那一層，這個假說也不再重要。
+ *
+ * 飽和為什麼由累積呼叫次數決定，仍然沒有解釋。
+ *
+ * ## 如果哪天分批 + 記憶體上限還不夠
+ *
+ * 換成 `$executeRaw` 手拼多列 INSERT 還有約 3 倍空間。**刻意不做**：11 個 domain 共用這支 helper，
+ * 手拼 SQL 沒有型別檢查，欄位順序錯了要執行期才知道，而目前根本沒有痛點（prod 峰值見 README
+ * 「Production memory headroom」一節）。這是萬一的第二手，不是預設選項。
  *
  * 規律本身可用、處置不受影響：降批量降低平台這件事是實測的，不依賴機制解釋。
  *
