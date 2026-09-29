@@ -6,6 +6,7 @@ import monthlyMonetaryAggregateRouter from '@/domains/monthlyMonetaryAggregate/r
 import dailyUsdTwdRateRouter from '@/domains/dailyUsdTwdRate/route';
 import quarterlyUsGnpDeflatorRouter from '@/domains/quarterlyUsGnpDeflator/route';
 import usPolicyRateRouter from '@/domains/usPolicyRate/route';
+import ecbPolicyRateRouter from '@/domains/ecbPolicyRate/route';
 import monthlyStockMarketSummaryRouter from '@/domains/monthlyStockMarketSummary/route';
 import laborBrokerLicenseRouter from '@/domains/laborBrokerLicense/route';
 import laborBrokerEvaluationRouter from '@/domains/laborBrokerEvaluation/route';
@@ -47,6 +48,7 @@ ingestRouter.use(monthlyMonetaryAggregateRouter);
 ingestRouter.use(dailyUsdTwdRateRouter);
 ingestRouter.use(quarterlyUsGnpDeflatorRouter);
 ingestRouter.use(usPolicyRateRouter);
+ingestRouter.use(ecbPolicyRateRouter);
 ingestRouter.use(monthlyStockMarketSummaryRouter);
 ingestRouter.use(laborBrokerLicenseRouter);
 ingestRouter.use(laborBrokerEvaluationRouter);

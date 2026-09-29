@@ -153,6 +153,38 @@ model UsPolicyRate {
   @@schema("public")
 }
 
+/// 歐洲央行三大政策利率（ECB 官方稱 "key ECB interest rates"）的「調整事件」序列，由
+/// /api/ingest/ecb-policy-rate 觸發向 ECB Data Portal 的 SDMX REST API 抓取。跟 cbc_policy_rate、
+/// us_policy_rate 同一種形狀：每列一次調整生效日，1999-01-01 起，實測約 69 列（2026-09-29）。
+///
+/// 三個欄位：depositFacilityRate 存款機制利率（2022 年改採「地板系統」之後，市場引用的就是這一個，
+/// 而且 2014-06 ~ 2022-07 是負值）、mainRefinancingRate 主要再融資利率（MRO，ECB 傳統上的政策
+/// 基準）、marginalLendingRate 邊際貸款機制利率。三者不一定同步調整——實測 69 列裡有 7 列 MRO 沒動、
+/// 只調了利率走廊的上下緣，下游拿 MRO 當代表利率算變動幅度時那幾列會是 0，那不是錯。
+///
+/// mainRefinancingIsMinimumBid 記錄 MRO 那個數字的標售機制：ECB 在 2000-06-28 ~ 2008-10-14 改採
+/// 變動利率標售，該段的 MRO 是「最低投標利率」而不是「固定標售利率」，ECB 自己拆成 MRR_MBR /
+/// MRR_FR 兩支序列（兩支日期零重疊，聯集剛好等於完整涵蓋範圍）。刻意不用 FRED 的 ECBMRRFR 鏡像：
+/// 它把最低投標利率那 3,031 天填成字面上的 0.00，跟 2016-03-16 ~ 2022-07-26 真正的 0% 無法分辨，
+/// 照抄會讓 2000-2008 年顯示成 0%（實際 3.25% ~ 4.75%）。
+///
+/// 存的是百分比數字（2.50 = 2.50%），允許負值。
+model EcbPolicyRate {
+  effectiveDate DateTime @id @map("effective_date") @db.Date
+
+  depositFacilityRate Decimal @map("deposit_facility_rate") @db.Decimal(8, 4)
+  mainRefinancingRate Decimal @map("main_refinancing_rate") @db.Decimal(8, 4)
+  marginalLendingRate Decimal @map("marginal_lending_rate") @db.Decimal(8, 4)
+
+  mainRefinancingIsMinimumBid Boolean @map("main_refinancing_is_minimum_bid")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("ecb_policy_rate")
+  @@schema("public")
+}
+
 /// 上市股票市場月統計，由 /api/ingest/monthly-stock-market-summary 觸發向央行統計資料庫 API
 /// （FileName=EG27M01en，"28.Stock Market -B.Transactions of Listed Stock and Stock Price By Period"）
 /// 抓取。價值在於 avgTaiex：加權股價指數的**月平均**（1966 = 100），1987-05 起——twse-ts 的

@@ -69,6 +69,10 @@ export const schedulerConfig = {
     // 美國政策利率跟 cbc-policy-rate 一樣每天跑：FOMC 一年只開 8 次，但決議當天就該反映，
     // 而三個 CSV 都很小。05:12 是空檔（05:02 是 cbc-policy-rate、05:32 只有每月 3 日的稅籍檔）。
     { name: 'us-policy-rate-daily', path: '/api/ingest/us-policy-rate', schedule: '12 5 * * *' },
+    // 歐洲央行，同樣每天跑：ECB 管理委員會一年約 8 次貨幣政策會議，決議當天（台北時間晚上）
+    // 公布，隔天早上 05:22 抓到。四支序列都是小檔案。05:22 是空檔（05:02 央行、05:12 美國、
+    // 05:32 只有每月 3 日的稅籍檔）。
+    { name: 'ecb-policy-rate-daily', path: '/api/ingest/ecb-policy-rate', schedule: '22 5 * * *' },
     // FRED（美國聯準會）——BEA 每月底發布/修正 GDP，FRED 當天更新，每月 5 日抓一次；這支每次整批重建
     // （見 quarterlyUsGnpDeflator/service.ts），所以修正值自然進來。
     { name: 'quarterly-us-gnp-deflator-monthly', path: '/api/ingest/quarterly-us-gnp-deflator', schedule: '47 3 5 * *' },
