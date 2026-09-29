@@ -131,6 +131,28 @@ model QuarterlyUsGnpDeflator {
   @@schema("public")
 }
 
+/// 美國聯邦基金目標利率的「調整事件」序列，由 /api/ingest/us-policy-rate 觸發向 FRED 抓取。
+/// 跟 cbc_policy_rate 是對稱的一對（台灣／美國政策利率），刻意做成同一種形狀：每列一次調整生效日。
+///
+/// Fed 在 2008-12-16 把制度從「單一目標值」改成「目標區間」，所以完整歷史要縫合三個 FRED 序列：
+/// DFEDTAR（1982-09-27 → 2008-12-15）＋ DFEDTARU/DFEDTARL（2008-12-16 起）。單一目標值那段把
+/// targetUpper 與 targetLower 存成同一個數字，讓下游一套欄位邏輯就能跨這條分界，不用自己判斷年份。
+///
+/// FRED 原始資料是每日持平值（值沒變的日子照樣出一列），parser 會 diff 相鄰值轉成事件；實測
+/// 9,577 + 6,495 個日資料點壓縮成約 190 次變動（2026-09-28）。存的是百分比數字（4.00 = 4.00%）。
+model UsPolicyRate {
+  effectiveDate DateTime @id @map("effective_date") @db.Date
+
+  targetUpper Decimal @map("target_upper") @db.Decimal(8, 4)
+  targetLower Decimal @map("target_lower") @db.Decimal(8, 4)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("us_policy_rate")
+  @@schema("public")
+}
+
 /// 上市股票市場月統計，由 /api/ingest/monthly-stock-market-summary 觸發向央行統計資料庫 API
 /// （FileName=EG27M01en，"28.Stock Market -B.Transactions of Listed Stock and Stock Price By Period"）
 /// 抓取。價值在於 avgTaiex：加權股價指數的**月平均**（1966 = 100），1987-05 起——twse-ts 的

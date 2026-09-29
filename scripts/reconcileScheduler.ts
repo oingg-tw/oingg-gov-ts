@@ -37,7 +37,14 @@ function runGcloud(args: string[]): string {
 function listActualJobs(): Map<string, ActualJob> {
   let output: string;
   try {
-    output = runGcloud(['scheduler', 'jobs', 'list', `--location=${schedulerConfig.region}`, '--format=json']);
+    output = runGcloud([
+      'scheduler',
+      'jobs',
+      'list',
+      `--project=${schedulerConfig.project}`,
+      `--location=${schedulerConfig.region}`,
+      '--format=json',
+    ]);
   } catch (error) {
     // gcloud 的 auth token 每天過期，非互動執行會直接死在這裡——把 stderr 原樣印出來，不然只看到
     // JSON.parse 失敗看不出是 auth 問題（twse-ts 三週心得）。
@@ -71,10 +78,11 @@ function listActualJobs(): Map<string, ActualJob> {
 let cachedTaskSecret: string | null = null;
 function getTaskSecret(): string {
   if (cachedTaskSecret) return cachedTaskSecret;
-  cachedTaskSecret = execFileSync('gcloud', ['secrets', 'versions', 'access', 'latest', `--secret=${schedulerConfig.taskSecretName}`], {
-    encoding: 'utf-8',
-    shell: true,
-  }).trim();
+  cachedTaskSecret = execFileSync(
+    'gcloud',
+    ['secrets', 'versions', 'access', 'latest', `--project=${schedulerConfig.project}`, `--secret=${schedulerConfig.taskSecretName}`],
+    { encoding: 'utf-8', shell: true }
+  ).trim();
   return cachedTaskSecret;
 }
 
@@ -88,6 +96,7 @@ function buildUpdateArgs(job: SchedulerJobConfig, isCreate: boolean): string[] {
     isCreate ? 'create' : 'update',
     'http',
     job.name,
+    `--project=${schedulerConfig.project}`,
     `--location=${schedulerConfig.region}`,
     `--schedule=${job.schedule}`,
     `--time-zone=${schedulerConfig.defaults.timeZone}`,
