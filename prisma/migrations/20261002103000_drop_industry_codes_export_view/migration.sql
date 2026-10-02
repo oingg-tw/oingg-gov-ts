@@ -1,0 +1,12 @@
+-- DropView
+-- analysis-ts 2026-10-02 下架 GET /industries/tree 與 /flat（他們的 commit da642b5b），那兩支是
+-- export.industry_codes 唯一的讀者，所以這個 view 現在零消費者，使用者裁定移除。
+--
+-- ⚠️ 底層的 tax_industry_classification 表**必須保留**：export.company_industry_classification
+-- 靠 JOIN 它才拿得到 section_code，而那是 analysis-ts 的 Altman Z″ 判斷製造業（section='C'）
+-- 唯一的來源，他們 2026-10-02 已把 Z″ 改成 fail-closed（查不到分類就不算）。
+--
+-- 這個 view 只是把 tax_industry_classification 整張表原樣開出去（code/level/各層祖先代碼/中英文
+-- 名稱/updated_at），沒有任何運算，哪天要再開回來就是一行 CREATE VIEW，資料不會因為少了 view 而
+-- 遺失。seed 來源也還在（prisma/seed.ts + prisma/seed-data）。
+DROP VIEW "export"."industry_codes";
