@@ -1,14 +1,7 @@
 import { type Request, type Response, type NextFunction } from 'ultimate-express';
 import { z } from 'zod';
-import {
-  registerCompanyProfile,
-  refreshTrackedCompanyProfiles,
-  getCompanyProfileByTaxId,
-  getCompanyProfileByStockCode,
-  listCompanyProfileIngestionFailures,
-  listRegisteredStockCodes,
-} from '@/domains/companyProfile/service';
-import type { CompanyProfileWithBusinessItems } from '@/domains/companyProfile/types';
+import { registerCompanyProfile, refreshTrackedCompanyProfiles } from '@/domains/companyProfile/service';
+import type { CompanyProfile } from '@prisma/client';
 
 const registerItemSchema = z.object({
   stockCode: z.string().regex(/^[0-9A-Z]{4,6}$/, '證券代碼須為 4-6 碼英數字'),
@@ -39,13 +32,18 @@ export const registerCompanyProfileController = async (req: Request, res: Respon
     // 外部一次把整個陣列送進來，但進到 gov 之後還是一筆一筆序列處理（不是 Promise.all 平行打）——
     // 一來 GCIS client 本身有節流會把平行請求擠成序列，平行送只會讓每個請求各自排隊等節流，沒有
     // 加速效果；二來序列處理讓單一統編查詢失敗時不會影響其他筆，也方便逐筆記錄成功/跳過/失敗。
+    //
+    // 失敗只回在這個回應裡，不再另外落地：原本有一張 company_profile_ingestion_failures 記「還沒
+    // 成功過的統編」，但它唯一的讀取者是已移除的 GET /api/query/company-profile/failures，沒有
+    // 任何外部服務在讀（2026-10-02 查過 twse-ts/tpex-ts/mops-ts/analysis-ts/bff-ts）。呼叫端要重試
+    // 就從自己這次收到的 results 裡挑出 success=false 的重送。
     const results: Array<{
       stockCode: string;
       taxId: string;
       success: boolean;
       skipped: boolean;
       error?: string;
-      profile?: CompanyProfileWithBusinessItems;
+      profile?: CompanyProfile;
     }> = [];
 
     for (const { stockCode, taxId } of items) {
@@ -87,68 +85,6 @@ export const refreshTrackedCompanyProfilesController = async (_req: Request, res
     });
   } catch (error) {
     console.error('Refreshing tracked company profiles failed:', error);
-    next(error);
-  }
-};
-
-export const taxIdParamSchema = z.object({ taxId: z.string().regex(/^\d{8}$/, '統一編號須為 8 碼數字') });
-
-export const getCompanyProfileByTaxIdController = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validationResult = taxIdParamSchema.safeParse(req.params);
-    if (!validationResult.success) {
-      return res.status(400).json({ message: 'Invalid taxId.', errors: validationResult.error.format() });
-    }
-
-    const profile = await getCompanyProfileByTaxId(validationResult.data.taxId);
-    if (!profile) {
-      return res.status(404).json({ message: `No company profile found for taxId=${validationResult.data.taxId}.` });
-    }
-
-    res.status(200).json(profile);
-  } catch (error) {
-    console.error('Company profile lookup by taxId failed:', error);
-    next(error);
-  }
-};
-
-export const stockCodeParamSchema = z.object({ stockCode: z.string().regex(/^[0-9A-Z]{4,6}$/, '證券代碼須為 4-6 碼英數字') });
-
-export const getCompanyProfileByStockCodeController = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validationResult = stockCodeParamSchema.safeParse(req.params);
-    if (!validationResult.success) {
-      return res.status(400).json({ message: 'Invalid stockCode.', errors: validationResult.error.format() });
-    }
-
-    const profile = await getCompanyProfileByStockCode(validationResult.data.stockCode);
-    if (!profile) {
-      return res.status(404).json({ message: `No company profile found for stockCode=${validationResult.data.stockCode}.` });
-    }
-
-    res.status(200).json(profile);
-  } catch (error) {
-    console.error('Company profile lookup by stockCode failed:', error);
-    next(error);
-  }
-};
-
-export const listCompanyProfileIngestionFailuresController = async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const failures = await listCompanyProfileIngestionFailures();
-    res.status(200).json(failures);
-  } catch (error) {
-    console.error('Company profile ingestion failures query failed:', error);
-    next(error);
-  }
-};
-
-export const listRegisteredStockCodesController = async (_req: Request, res: Response, next: NextFunction) => {
-  try {
-    const stockCodes = await listRegisteredStockCodes();
-    res.status(200).json(stockCodes);
-  } catch (error) {
-    console.error('Registered stock codes query failed:', error);
     next(error);
   }
 };

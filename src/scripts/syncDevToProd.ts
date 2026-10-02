@@ -6,12 +6,15 @@
  * Dev 端沿用 shared/config 讀到的 DATABASE_URL（本機 .env）。Prod 端連線字串刻意不從任何檔案讀，
  * 只能用環境變數在呼叫當下傳入，避免帶密碼的字串被寫進 repo 或 shell history 以外的地方留存。
  *
- * company_business_items 靠 tax_id 外鍵回 company_profiles，一定要先同步完 company_profiles，
- * 再同步 company_business_items，否則會撞外鍵約束——這裡沒有自動判斷順序，呼叫端要自己照順序跑。
+ * 2026-10-02：原本還支援 company_business_items，那張表已隨「MOEA 營業項目橋接 DGBAS 行業分類」
+ * 這個沒做成的功能一起移除，所以現在只剩 company_profiles 一張表可同步。
+ *
+ * 這支是一次性工具，不是排程的一部分——正式環境那 1,003 筆上市公司 profile 當初就是用它從 dev
+ * 搬過去的。company_profiles 目前沒有任何自動化入口（新公司只能由外部 POST /api/ingest/company-profile
+ * 帶進來，需要 body，Cloud Scheduler 給不了），所以這支留著。
  *
  * 用法：
  *   PROD_DATABASE_URL="postgresql://...?...&pgbouncer=true" npx tsx src/scripts/syncDevToProd.ts --table=company_profiles
- *   PROD_DATABASE_URL="..." npx tsx src/scripts/syncDevToProd.ts --table=company_business_items
  *   （不加 --yes 只會印出預覽，不會真的寫入）
  *   PROD_DATABASE_URL="..." npx tsx src/scripts/syncDevToProd.ts --table=company_profiles --yes
  */
@@ -55,29 +58,6 @@ const TABLES: Record<string, TableSyncConfig> = {
         "company_status_desc" = EXCLUDED."company_status_desc",
         "company_setup_date" = EXCLUDED."company_setup_date",
         "updated_at" = EXCLUDED."updated_at"
-    `,
-  },
-  company_business_items: {
-    count: () => devDb.companyBusinessItem.count(),
-    findBatch: (cursor) =>
-      devDb.companyBusinessItem.findMany({
-        take: BATCH_SIZE,
-        ...(cursor
-          ? { skip: 1, cursor: { taxId_position: cursor as { taxId: string; position: number } } }
-          : {}),
-        orderBy: [{ taxId: 'asc' }, { position: 'asc' }],
-      }),
-    nextCursor: (row) => ({ taxId: row.taxId, position: row.position }),
-    rowToValues: (row) => Prisma.sql`(
-      ${row.taxId}, ${row.position}, ${row.seqNo}, ${row.itemCode}, ${row.itemDesc}
-    )`,
-    upsertSql: (values) => Prisma.sql`
-      INSERT INTO "company_business_items" ("tax_id", "position", "seq_no", "item_code", "item_desc")
-      VALUES ${values}
-      ON CONFLICT ("tax_id", "position") DO UPDATE SET
-        "seq_no" = EXCLUDED."seq_no",
-        "item_code" = EXCLUDED."item_code",
-        "item_desc" = EXCLUDED."item_desc"
     `,
   },
   // company_industry_classifications 靠 tax_id 外鍵回 company_profiles、industry_code 外鍵回

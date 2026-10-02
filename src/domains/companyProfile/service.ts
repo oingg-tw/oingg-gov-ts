@@ -1,46 +1,26 @@
 import { Prisma } from '@prisma/client';
-import type { CompanyProfileIngestionFailure } from '@prisma/client';
+import type { CompanyProfile } from '@prisma/client';
 import prisma from '@/adapters/prisma/index';
 import { fetchCompanyBusinessItems } from '@/adapters/gcis';
-import { dedupeBusinessItems } from '@/domains/companyProfile/dedupe';
-import type { RegisterCompanyProfileResult, CompanyProfileWithBusinessItems } from '@/domains/companyProfile/types';
+import type { RegisterCompanyProfileResult } from '@/domains/companyProfile/types';
 
-// company_profile_ingestion_failures 只記「目前還沒成功過的統編」：失敗就 upsert（累加 attempts、
-// 更新錯誤訊息），成功（不論新登記還是 skip 既有資料）就把該統編的紀錄刪掉。這裡包 try/catch 是
-// 因為這是輔助性的記帳動作，記錄本身失敗（例如 DB 瞬斷）不該讓 registerCompanyProfile 原本已經
-// 拿到的成功/失敗結果被蓋掉——最多印錯誤、結果照樣回傳。
-const recordIngestionOutcome = async (stockCode: string, taxId: string, result: RegisterCompanyProfileResult): Promise<void> => {
-  try {
-    if (result.success) {
-      await prisma.companyProfileIngestionFailure.deleteMany({ where: { taxId } });
-    } else {
-      await prisma.companyProfileIngestionFailure.upsert({
-        where: { taxId },
-        create: { taxId, stockCode, error: result.error ?? 'Unknown error' },
-        update: { stockCode, error: result.error ?? 'Unknown error', attempts: { increment: 1 } },
-      });
-    }
-  } catch (error) {
-    console.error('Failed to record company profile ingestion outcome:', error);
-  }
-};
+// 2026-10-02 起這個 domain 只負責「維護 company_profiles 這份統編↔證券代碼對照」，供
+// companyIndustryClassification 把稅籍行業別接到證券代碼上（export.company_industry_classification）。
+// 原本還做兩件事，都已移除：
+// - 把 GCIS 回應的營業項目落地到 company_business_items。那是為了「用 MOEA 營業項目橋接 DGBAS 行業
+//   分類」而建的，該橋接沒有做成（analysis-ts 的紀錄），表也從來沒有 export view、沒有任何下游在讀。
+// - 用 company_profile_ingestion_failures 記「還沒成功登記的統編」。它只有搭配已移除的
+//   GET /api/query/company-profile/failures 才有意義，失敗現在逐筆回在 HTTP 回應裡。
+// 仍然打 GCIS 的 fetchCompanyBusinessItems：那支回傳的是整筆公司登記資料，我們要的是公司名稱/狀態/
+// 設立日期，營業項目只是同一個回應順帶附上的，不再寫進 DB。
 
 export const registerCompanyProfile = async (stockCode: string, taxId: string, force = false): Promise<RegisterCompanyProfileResult> => {
-  const result = await registerCompanyProfileCore(stockCode, taxId, force);
-  await recordIngestionOutcome(stockCode, taxId, result);
-  return result;
-};
-
-const registerCompanyProfileCore = async (stockCode: string, taxId: string, force: boolean): Promise<RegisterCompanyProfileResult> => {
   if (!force) {
     // 包 try/catch 是因為這個 function 會在批次 ingest 的迴圈裡被逐筆呼叫（見
     // companyProfile/controller.ts）：這裡如果不接住例外直接往外丟，會讓單一統編的 DB 查詢失敗
     // 中斷整批後面還沒處理的項目，而不是只記那一筆失敗、繼續跑下一筆。
     try {
-      const existing = await prisma.companyProfile.findUnique({
-        where: { taxId },
-        include: { businessItems: { orderBy: { position: 'asc' } } },
-      });
+      const existing = await prisma.companyProfile.findUnique({ where: { taxId } });
       // 已經有資料就跳過，不打 GCIS——這條路刻意不檢查 stockCode 是否跟既有資料一致，帶 force=true
       // 才會真的重新抓取並覆寫（包含 stockCode）。
       if (existing) return { success: true, profile: existing, skipped: true };
@@ -61,54 +41,23 @@ const registerCompanyProfileCore = async (stockCode: string, taxId: string, forc
     return { success: false, notFound: true, error: `GCIS 查無統編 ${taxId} 的公司登記資料。` };
   }
 
+  const data = {
+    stockCode,
+    companyName: record.Company_Name,
+    companyStatus: record.Company_Status,
+    companyStatusDesc: record.Company_Status_Desc,
+    companySetupDate: record.Company_Setup_Date,
+  };
+
   try {
-    const profile = await prisma.$transaction(async (tx) => {
-      await tx.companyProfile.upsert({
-        where: { taxId },
-        create: {
-          taxId,
-          stockCode,
-          companyName: record.Company_Name,
-          companyStatus: record.Company_Status,
-          companyStatusDesc: record.Company_Status_Desc,
-          companySetupDate: record.Company_Setup_Date,
-        },
-        update: {
-          stockCode,
-          companyName: record.Company_Name,
-          companyStatus: record.Company_Status,
-          companyStatusDesc: record.Company_Status_Desc,
-          companySetupDate: record.Company_Setup_Date,
-        },
-      });
-
-      // GCIS 回應是「當下完整清單」而非增量，整批刪除重建比逐筆比對更新簡單也更不容易留下髒資料。
-      // dedupeBusinessItems 處理 GCIS 回應本身會整列重複的問題，見該函式註解與
-      // src/domains/companyProfile/dedupe.test.ts。
-      const dedupedItems = dedupeBusinessItems(record.Cmp_Business);
-
-      await tx.companyBusinessItem.deleteMany({ where: { taxId } });
-      await tx.companyBusinessItem.createMany({
-        data: dedupedItems.map((item, position) => ({
-          taxId,
-          position, // 陣列索引（去重後），不是 Business_Seq_NO——後者實測會重複，見 schema.prisma 註解
-          seqNo: item.Business_Seq_NO,
-          itemCode: item.Business_Item.trim() === '' ? null : item.Business_Item,
-          itemDesc: item.Business_Item_Desc,
-        })),
-      });
-
-      return tx.companyProfile.findUniqueOrThrow({
-        where: { taxId },
-        include: { businessItems: { orderBy: { position: 'asc' } } },
-      });
-    }, { timeout: 30000 }); // Prisma 預設 5 秒，Cloud Run min-instances=0 + Neon autosuspend 冷啟動很容易超過，比照 oingg-twse-ts 拉到 30 秒
-
+    // 單一 upsert，不再需要交易——營業項目的刪除重建移除後，這裡只寫一張表。
+    const profile = await prisma.companyProfile.upsert({ where: { taxId }, create: { taxId, ...data }, update: data });
     return { success: true, profile };
   } catch (error) {
-    // P2002 可能來自兩個不同的 unique constraint，不能一律當成 stockCode 衝突（之前這裡曾經
-    // 不分青紅皂白都回「證券代碼已登記在其他統編下」，結果 company_business_items 的
-    // (tax_id, position) 撞到時也被貼上同一個誤導訊息）——用 error.meta.target 分辨是哪個欄位。
+    // 這張表現在只剩 stockCode 一個額外的 unique constraint（taxId 是主鍵，upsert 自己處理），
+    // 所以 P2002 只會是證券代碼撞到。仍然檢查 meta.target 而不是直接假設：之前這裡曾經不分
+    // 青紅皂白把所有 P2002 都當成 stockCode 衝突，結果 company_business_items 的 (tax_id, position)
+    // 撞到時也被貼上誤導訊息——那張表沒了，但「看 target 再判斷」這個習慣要留著。
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       const target = (error.meta?.target as string[] | string | undefined) ?? [];
       const targetsStockCode = Array.isArray(target) ? target.includes('stock_code') : target === 'stock_code';
@@ -120,24 +69,6 @@ const registerCompanyProfileCore = async (stockCode: string, taxId: string, forc
   }
 };
 
-export const getCompanyProfileByTaxId = (taxId: string): Promise<CompanyProfileWithBusinessItems | null> => {
-  return prisma.companyProfile.findUnique({
-    where: { taxId },
-    include: { businessItems: { orderBy: { position: 'asc' } } },
-  });
-};
-
-export const getCompanyProfileByStockCode = (stockCode: string): Promise<CompanyProfileWithBusinessItems | null> => {
-  return prisma.companyProfile.findUnique({
-    where: { stockCode },
-    include: { businessItems: { orderBy: { position: 'asc' } } },
-  });
-};
-
-export const listCompanyProfileIngestionFailures = (): Promise<CompanyProfileIngestionFailure[]> => {
-  return prisma.companyProfileIngestionFailure.findMany({ orderBy: { updatedAt: 'desc' } });
-};
-
 export interface RefreshTrackedCompanyProfilesResult {
   total: number;
   succeeded: number;
@@ -147,14 +78,16 @@ export interface RefreshTrackedCompanyProfilesResult {
 
 // 「重跑目前所有已追蹤公司」——不是靠外部呼叫端提供清單，清單直接從 company_profiles 現有資料撈，
 // 撈到幾筆就處理幾筆，不寫死數字。每一筆都強制 force=true：這個端點存在的目的就是刷新既有資料
-// （公司登記的營業項目可能變動過），如果沿用預設的「已存在就跳過」邏輯，對已經在追蹤清單裡的公司
+// （公司登記狀態可能變動過），如果沿用預設的「已存在就跳過」邏輯，對已經在追蹤清單裡的公司
 // 會直接全部跳過、等於沒做事，語意上說不通。
 //
+// 注意這支**只能刷新，永遠不會長出新公司**——清單來源就是這張表自己。新公司只能由外部呼叫
+// POST /api/ingest/company-profile 帶進來（需要 body，Cloud Scheduler 給不了，見 scheduler.config.ts
+// 檔頭）。2026-10-02 實測正式環境 1,003 筆全部是上市公司，上櫃/興櫃從來沒有任何東西推進來過。
+//
 // 逐筆序列處理（原因跟 controller.ts 的批次登記一樣：GCIS client 本身有節流，平行送不會加速，
-// 序列處理才能讓單筆失敗不影響其他筆）。回應刻意不含每筆的完整 profile/businessItems——追蹤清單
-// 現在有 1000+ 筆，每筆都塞完整資料會讓回應本體過大；只回統計數字跟失敗清單，成功的細節可以透過
-// GET /api/query/company-profile/tax-id/:taxId 個別查，失敗的細節也已經另外記在
-// company_profile_ingestion_failures（GET /api/query/company-profile/failures）。
+// 序列處理才能讓單筆失敗不影響其他筆）。回應只回統計數字跟失敗清單，不含每筆的完整 profile——
+// 追蹤清單有 1000+ 筆，每筆都塞完整資料會讓回應本體過大。
 export const refreshTrackedCompanyProfiles = async (): Promise<RefreshTrackedCompanyProfilesResult> => {
   const targets = await prisma.companyProfile.findMany({ select: { stockCode: true, taxId: true } });
 
@@ -173,21 +106,4 @@ export const refreshTrackedCompanyProfiles = async (): Promise<RefreshTrackedCom
   return { total: targets.length, succeeded, failed: failures.length, failures };
 };
 
-export interface RegisteredStockCode {
-  stockCode: string;
-  taxId: string;
-  businessItemCount: number;
-  updatedAt: Date;
-}
-
-// 給 TWSE（或其他外部系統）打的清單端點：只回傳「有哪些證券代碼已經有營業項目」，不含完整營業項目
-// 內容——要看細節請用 GET /api/query/company-profile/stock-code/:stockCode 個別查。company_profiles
-// 裡有資料就代表 businessItems 一定有（兩者是同一個 $transaction 一起寫入的，見 registerCompanyProfile），
-// 所以不用另外檢查 businessItems 是否為空。
-export const listRegisteredStockCodes = async (): Promise<RegisteredStockCode[]> => {
-  const profiles = await prisma.companyProfile.findMany({
-    select: { stockCode: true, taxId: true, updatedAt: true, _count: { select: { businessItems: true } } },
-    orderBy: { stockCode: 'asc' },
-  });
-  return profiles.map((p) => ({ stockCode: p.stockCode, taxId: p.taxId, businessItemCount: p._count.businessItems, updatedAt: p.updatedAt }));
-};
+export type { CompanyProfile };

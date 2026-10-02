@@ -127,7 +127,7 @@ export const ingestCompanyIndustryClassification = async (): Promise<IngestCompa
       continue;
     }
 
-    // 跟 companyProfile 的 businessItems 一樣的道理：來源是「這家公司當下完整的行業代號清單」，整批
+    // 來源是「這家公司當下完整的行業代號清單」，整批
     // 刪除重建比逐筆比對更新簡單，也更不會留下髒資料（例如上次有次要代號、這次稅籍登記拿掉了）。
     await prisma.$transaction(async (tx) => {
       await tx.companyIndustryClassification.deleteMany({ where: { taxId: match.taxId } });

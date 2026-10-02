@@ -40,7 +40,7 @@ Same domain-driven layout as oingg-mops-ts:
 ```
 src/
   index.ts              # app bootstrap (middleware, routes, error handler, server start)
-  routes.ts             # mounts ingest domains under /api/ingest, query domains under /api/query
+  routes.ts             # mounts every ingest domain under /api/ingest (the /api/query surface was removed 2026-10-02)
   adapters/
     prisma/              # single shared PrismaClient instance
     swagger/              # swagger-jsdoc setup, reads @swagger comments from domains/**
@@ -105,8 +105,11 @@ docs are served at `/api-docs`.
 All `/api/ingest/*` routes require a `TASK_SECRET` (via the `X-Task-Secret`
 header or `task_secret` query param) and are rate-limited to one trigger per
 dataset per 60s — see `src/shared/middleware.ts` / `src/shared/rateLimiter.ts`.
-Query routes under `/api/query/*` are unprotected (read-only, not
-externally-triggered fetches).
+Every route in this service is now an ingest route; there is no unprotected
+surface. The `/api/query/*` routes (company profile lookup, GCIS business-item
+passthrough, tax industry classification reference) were removed on 2026-10-02
+— no service in the ecosystem called them. Downstream reads go through the
+`export` schema views, not HTTP.
 
 ## Cloud Scheduler
 

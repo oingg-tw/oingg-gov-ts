@@ -467,62 +467,12 @@ model CompanyProfile {
   companyStatus     String @map("company_status")
   companyStatusDesc String @map("company_status_desc")
   companySetupDate  String @map("company_setup_date")
-
-  businessItems           CompanyBusinessItem[]
   industryClassifications CompanyIndustryClassification[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("company_profiles")
-  @@schema("public")
-}
-
-/// CompanyProfile 底下的營業項目快照，來源是登記當下 GCIS 回應的 Cmp_Business 陣列。GCIS 每次回應
-/// 都是「當下完整清單」而非增量，所以每次重新登記時這張表整批刪除重建（見 companyProfile/service.ts），
-/// 不逐筆比對更新。itemCode 對應 Business_Item：GCIS 這個欄位有時是空白（只有空格），代表這一列其實
-/// 是「所營事業資料」的自由文字說明、不是代碼化項目，這種情況存 null。這裡的代碼格式（例如"CC01080"）
-/// 跟 TaxIndustryClassification 的代碼格式不同，是經濟部商業登記自己的行業代碼，兩者尚未建立對照，
-/// 不能直接拿 TaxIndustryClassification 解碼。
-///
-/// position（不是 seqNo）才是唯一鍵：實測發現 GCIS 的回應裡，不少公司的營業項目會整列重複兩次
-/// （seqNo/itemCode/itemDesc 三個欄位完全一樣，不是序號剛好撞在一起，是同一筆資料真的出現兩次，
-/// 例如雲豹能源科技 42852207 的 56 筆原始資料其實只有 28 個不重複項目）——這是 GCIS 自己回應內容
-/// 的問題。service.ts 寫入前會用 seqNo+itemCode+itemDesc 三欄組合去重，這裡存的都是去重後的資料，
-/// 不會有完全重複的列。position 是去重後在陣列裡的 0-based 索引，我們自己產生、保證同一次寫入不會
-/// 重複，用它保留原始排序、也用它當唯一鍵；seqNo 純粹存 GCIS 原始值供參考，不拿來保證唯一。
-model CompanyBusinessItem {
-  id      Int            @id @default(autoincrement())
-  taxId   String         @map("tax_id")
-  company CompanyProfile @relation(fields: [taxId], references: [taxId], onDelete: Cascade)
-
-  position Int     @map("position") // 該筆在 GCIS 回應 Cmp_Business 陣列裡的 0-based 索引，用來排序也用來保證唯一
-  seqNo    String  @map("seq_no") // Business_Seq_NO，GCIS 原始值，僅供參考（不保證唯一，見上方註解）
-  itemCode String? @map("item_code") // Business_Item，空白視為 null
-  itemDesc String  @map("item_desc") // Business_Item_Desc
-
-  @@unique([taxId, position])
-  @@index([itemCode])
-  @@map("company_business_items")
-  @@schema("public")
-}
-
-/// 記錄 registerCompanyProfile（POST /api/ingest/company-profile）失敗的統編，一個統編一列（用
-/// taxId 當主鍵 upsert，不是每次失敗都新增一列）——目的是回答「目前還有哪些統編沒成功登記」，不是
-/// 完整的歷史稽核軌跡，所以重複失敗只累加 attempts、更新 error/updatedAt，不留舊的錯誤訊息。之後
-/// 只要該統編成功登記（不論是新登記還是 force 覆寫），這一列就會被刪除——這張表裡有資料，就代表
-/// 「這個統編從沒成功過」。
-model CompanyProfileIngestionFailure {
-  taxId     String @id @map("tax_id") // 統一編號
-  stockCode String @map("stock_code") // 最後一次嘗試時帶的證券代碼
-
-  error    String @db.Text // 最後一次失敗的錯誤訊息
-  attempts Int    @default(1) // 累積失敗次數
-
-  createdAt DateTime @default(now()) @map("created_at") // 第一次失敗的時間
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") // 最後一次失敗的時間
-
-  @@map("company_profile_ingestion_failures")
   @@schema("public")
 }
 
@@ -558,7 +508,7 @@ model IngestionRun {
 
 /// 每家公司(用 CompanyProfile.taxId)對應「最多四個」官方行業分類代碼，來源是財政部財政資訊中心
 /// 《全國營業(稅籍)登記資料集》(data.gov.tw/dataset/9400，每日更新、約171萬列全國登記營業人，沒有
-/// 查詢式 API，只能整份下載再過濾)——不是拿 CompanyBusinessItem(GCIS 營業項目)反推，那是完全不同的
+/// 查詢式 API，只能整份下載再過濾)——不是拿 GCIS 的公司營業項目反推，那是完全不同的
 /// 代碼系統且一家公司常十幾筆、雜訊很大(2026-08-31 已用亞洲水泥 1102 實測驗證過對不起來)。
 ///
 /// 這份稅籍登記資料裡，同一個統編會有多「列」(總公司+各分公司/廠各自的稅籍登記)，用「統一編號=自己、
@@ -572,7 +522,7 @@ model IngestionRun {
 ///
 /// 因為來源檔案是全國性、不分上市櫃，這裡刻意只收 CompanyProfile 裡已經追蹤的公司(見
 /// companyIndustryClassification/service.ts)，不落地全部171萬筆。每次重新 ingest 整批刪除重建(理由
-/// 跟 CompanyBusinessItem 一樣：來源是「當下完整清單」，不逐筆比對更新)。
+/// 來源是「當下完整清單」，不逐筆比對更新)。
 model CompanyIndustryClassification {
   id      Int            @id @default(autoincrement())
   taxId   String         @map("tax_id")
