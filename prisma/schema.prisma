@@ -469,18 +469,27 @@ model IngestionRun {
   runId       BigInt   @id @default(autoincrement()) @map("run_id")
   dataset     String // 對應 export schema 裡的哪個 view，例如 "monthly_gov_bond_yield_10y"
   dataDate    DateTime @map("data_date") @db.Date // 這批資料涵蓋到的最新業務日期（不是 ingest 執行的時間）
-  completedAt DateTime @default(now()) @map("completed_at")
+  // completedAt 與 sourceLastModified 是「時間點」，所以存 TIMESTAMPTZ——跟本 schema 其他 36 個
+  // createdAt/updatedAt（不帶時區的 TIMESTAMP(3)）刻意不一致，**不要為了一致改回去**。理由是這張表
+  // 是 analysis-ts 跨五個後台用同一套邏輯讀的握手表，而另外三個的實際 DDL 都是 TIMESTAMPTZ
+  // （twse-ts / tpex-ts / mops-ts，2026-10-08 核對 migration 原文），gov-ts 原本是唯一的例外。
+  // 不帶時區時，任何把 session TimeZone 設成 Asia/Taipei 的讀者（BI 工具），或用原生 pg client
+  // 讀的人（pg 預設把 timestamp 當本地時間解析），讀到的時間點都會偏 8 小時。那 36 個簿記欄位
+  // 沒有跟著改，是因為每個 export view 都引用 updated_at，PostgreSQL 不准 ALTER TYPE 被 view
+  // 依賴的欄位，改它們等於 drop/重建 18 個 view；而兄弟 repo 的簿記欄位也是 TIMESTAMP，那邊本來
+  // 就一致。
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
   rowCount    Int      @map("row_count")
   status      String // success | partial | failed
 
   // 來源檔案伺服器回應的 Last-Modified header（2026-09-11 因 fund_basic_info 新增）——這是「來源
   // 那邊實際更新這份檔案的時間」，跟 completedAt（我們自己 ingest 的時間）是兩件事，故意分開存。
   // 動機：fund_basic_info 這種「月快照但真實發布時間點不明確」的來源，單次觀測（7月資料實測8月18日
-  // 才發布）不足以校準排程，要累積多筆這個欄位的紀錄才能回頭抓到真實的發布規律。目前只有
-  // fund_basic_info/fund_daily_nav 兩個 domain 的 service.ts 會填這個值；其他既有 domain 呼叫
-  // recordIngestionRun 時不帶這個欄位，會是 null——這不代表那些來源沒有 Last-Modified，只是還沒
-  // 排進去補這個欄位，不是資料缺陷。
-  sourceLastModified DateTime? @map("source_last_modified")
+  // 才發布）不足以校準排程，要累積多筆這個欄位的紀錄才能回頭抓到真實的發布規律。目前會填這個值的
+  // domain：fundBasicInfo、fundDailyNav、laborBrokerLicense、laborBrokerEvaluation、
+  // quarterlyUsGnpDeflator、usPolicyRate、ecbPolicyRate。其他是 null——多數是來源本身沒有
+  // Last-Modified header（例如 CBC 統計資料庫 API），不是資料缺陷。
+  sourceLastModified DateTime? @map("source_last_modified") @db.Timestamptz(6)
 
   @@index([dataset, status])
   @@map("ingestion_runs")
