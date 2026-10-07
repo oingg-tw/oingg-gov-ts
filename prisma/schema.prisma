@@ -29,6 +29,49 @@ model MonthlyGovBondYield10y {
   @@schema("public")
 }
 
+/// 五大銀行存款利率與基準放款利率月資料，由 /api/ingest/five-major-bank-rate 觸發向央行統計資料庫
+/// API（FileName=EG2BM01en，"29.Interest Rates-B.Rates by five major banks By Period"）抓取整份三欄。
+/// 1987-M1 起，2026-10-07 實測 476 列、零缺值，所以三欄都不是 nullable。
+///
+/// 存在的理由是**短天期無風險利率**。MonthlyGovBondYield10y 那支 10 年期公債適合 CAPM 與歷史法
+/// 股權風險溢酬（長期持有配長債），但不適合 Sharpe/Sortino/Jensen α——那些指標的無風險利率要配
+/// 衡量區間，用長率會把存續期風險溢酬算進超額報酬，而那正是要扣掉的東西。實際差距不小：2026-08
+/// 的 10 年期公債 1.96%、一年期定存 1.70%、金融業隔夜拆款 0.82%，對一個年化 8% 的投組，Sharpe
+/// 分子分別是 6.04 / 6.30 / 7.18。
+///
+/// 為什麼選定存而不是國庫券或拆款：(1) 台灣沒有可用的國庫券序列——CBC EG41M01en 的國庫券初級市場
+/// 1-91 天與 92-182 天兩欄近期整段是 "-"（2026-10-07 實測），所以照搬 Morningstar 的「按註冊地選
+/// 3 個月國庫券」做不到；(2) 隔夜拆款（EG37D01en）是銀行同業利率，散戶拿不到，用它會系統性高估
+/// Sharpe；(3) 定存是台灣在市場語言與法規層面的共同慣例——基金夏普值的通行定義是「過去 1 年平均
+/// 月報酬率超過平均月定存利率的部分」，而勞工退休金條例第 23 條的法定保證收益用的是「當地銀行
+/// 二年期定期存款利率之平均數」，立法者定義「無風險」時用的也是銀行定存。
+///
+/// 下游依窗口自己選天期：月報酬配 depositRate1m，一年窗口配 depositRate1y。刻意不只存一欄。
+/// baseLendingRate 跟無風險利率無關，是同一份回應附帶的總經序列，一起存（同 MonthlyStockMarketSummary
+/// 把同一份回應的市場規模欄位一起存的取捨）。
+///
+/// ⚠️ 「月頻率」是指資料的期間單位，不是更新頻率：CBC 這些序列隨《金融統計月報》每月 25 日前後
+/// 批次補上個月，所以**最新一列會落後約一個月**。算到「今天」的一年窗口，最後一個月取不到值，
+/// 下游要自己決定是往前補最後一個已知值還是縮短窗口。
+///
+/// 刻意不收 EG30D01en（同一組的完整天期階梯，有 1M/3M/6M/9M/1Y/2Y/3Y 定存與定儲）：使用者
+/// 2026-10-07 裁定永不採用，因為那支是事件序列、最新只到 2024-07-15，資料過時。
+model MonthlyFiveMajorBankRate {
+  year  Int // 西元年
+  month Int // 1-12
+
+  depositRate1m   Decimal @map("deposit_rate_1m") @db.Decimal(8, 4) // 一個月期定存利率
+  depositRate1y   Decimal @map("deposit_rate_1y") @db.Decimal(8, 4) // 一年期定存利率
+  baseLendingRate Decimal @map("base_lending_rate") @db.Decimal(8, 4) // 基準放款利率
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@id([year, month])
+  @@map("monthly_five_major_bank_rate")
+  @@schema("public")
+}
+
 /// 央行政策利率的「調整事件」序列，由 /api/ingest/cbc-policy-rate 觸發向央行統計資料庫 API
 /// （FileName=EG28D01en，"29.Interest Rates -A.Rates of Central Bank By Period"，日頻率版本）抓取。
 /// 這份「日資料」實際上不是每日快照——CBC 只在利率有調整的生效日才出一列（2026-09-21 實測整份

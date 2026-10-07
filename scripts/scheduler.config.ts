@@ -58,6 +58,7 @@ export const schedulerConfig = {
     // 月報》在每月 25 日前後一起更新上個月的資料，所以同樣排每月 5 日；匯率雖是日資料但也是這個節奏
     // 批次補上（見 dailyUsdTwdRate/route.ts），每天打只會拿到同一份。
     { name: 'gov-bond-yield-10y-monthly', path: '/api/ingest/gov-bond-yield-10y', schedule: '2 3 5 * *' },
+    { name: 'five-major-bank-rate-monthly', path: '/api/ingest/five-major-bank-rate', schedule: '57 3 5 * *' },
     { name: 'monthly-monetary-aggregate-monthly', path: '/api/ingest/monthly-monetary-aggregate', schedule: '37 3 5 * *' },
     { name: 'daily-usd-twd-rate-monthly', path: '/api/ingest/daily-usd-twd-rate', schedule: '42 3 5 * *' },
     { name: 'monthly-stock-market-summary-monthly', path: '/api/ingest/monthly-stock-market-summary', schedule: '52 3 5 * *' },

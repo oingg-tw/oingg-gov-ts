@@ -1,6 +1,7 @@
 import { Router } from 'ultimate-express';
 import rootRouter from '@/domains/system/root';
 import govBondYield10yRouter from '@/domains/govBondYield10y/route';
+import monthlyFiveMajorBankRateRouter from '@/domains/monthlyFiveMajorBankRate/route';
 import cbcPolicyRateRouter from '@/domains/cbcPolicyRate/route';
 import monthlyMonetaryAggregateRouter from '@/domains/monthlyMonetaryAggregate/route';
 import dailyUsdTwdRateRouter from '@/domains/dailyUsdTwdRate/route';
@@ -47,6 +48,7 @@ router.use(rootRouter);
 const ingestRouter = Router();
 ingestRouter.use(requireTaskSecret, ingestRateLimit);
 ingestRouter.use(govBondYield10yRouter);
+ingestRouter.use(monthlyFiveMajorBankRateRouter);
 ingestRouter.use(cbcPolicyRateRouter);
 ingestRouter.use(monthlyMonetaryAggregateRouter);
 ingestRouter.use(dailyUsdTwdRateRouter);

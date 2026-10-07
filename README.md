@@ -6,10 +6,20 @@ Postgres, in the same style as its sibling
 [oingg-mops-ts](https://github.com/oingg-tw/oingg-mops-ts). Scope isn't
 limited to any one agency — any Taiwan government data source is fair game.
 
-**Status: early.** The server boots, connects to the DB, and serves
-`/api-docs`. A few domains are implemented (10y government bond yield from
-CBC, tax industry classification from the Ministry of Finance) — more are
-added one at a time, from whichever agency has the data.
+18 ingest domains are live, all of them scheduled, drawing on 7 official
+sources (CBC, DGBAS, NDC, the Ministry of Finance, the Ministry of Labor,
+SITCA, plus FRED and the ECB for US and euro-area series). Interactive docs at
+`/api-docs`. New domains get added one at a time, from whichever agency has
+the data; `docs/資料來源合規對照表.md` records each source's licence and the
+attribution it obliges.
+
+Two interest-rate series exist and they are not interchangeable:
+`monthly_gov_bond_yield_10y` is for CAPM and historical equity risk premium
+(long holding period, long bond), while `monthly_five_major_bank_rate` is the
+short rate for Sharpe / Sortino / Jensen α, where the risk-free rate has to
+match the measurement window. See the `MonthlyFiveMajorBankRate` comment in
+`prisma/schema.prisma` for why a deposit rate rather than a T-bill or the
+overnight call loan rate.
 
 ## The CBC API
 
@@ -79,12 +89,10 @@ agency has the data you need.
 4. Add a Prisma model in `prisma/schema.prisma` (field naming / `@map`
    conventions should match oingg-mops-ts's schema) and run
    `pnpm prisma migrate dev --name <description>`.
-5. Wire the domain's router into `src/routes.ts`. Ingest-type domains
-   mounted under `ingestRouter` automatically get `TASK_SECRET` +
-   rate-limit protection (applied once at the router level) — no per-route
-   setup needed. Query-type domains under `queryRouter` are unprotected by
-   default; add protection explicitly if a specific query route turns out
-   to need it.
+5. Wire the domain's router into `src/routes.ts` under `ingestRouter`, which
+   applies `TASK_SECRET` + rate limiting once at the router level — no
+   per-route setup needed. `ingestRouter` is the only mount point; there is
+   no query surface (see below).
 
 ## Setup
 
