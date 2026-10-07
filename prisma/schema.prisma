@@ -414,68 +414,6 @@ model MonthlyBusinessCycleIndicator {
   @@schema("public")
 }
 
-/// 財政部統計處《中華民國稅務行業標準分類（第9次修訂）》代碼字典，一列對應五層階層（大/中/小/細/
-/// 子類）中的一個節點——不是只存葉節點，而是每一層都各自存一列，欄位裡自己那一層填自己的 code，
-/// 上層祖先代碼另外存在 sectionCode/divisionCode/.../classCode 欄位，方便直接用某一層代碼過濾
-/// （例如 WHERE section_code = 'K' 抓整個金融及保險業）。五種代碼格式（大類 1 碼英文字母、中類 2 碼
-/// 數字、小類 3 碼、細類 4 碼、子類「4碼-2碼」）彼此定長不重疊，所以 code 本身就能直接當全域唯一鍵，
-/// 不用另外疊代理鍵。這是靜態參考資料，不是像其他 domain 那樣定期向 CBC API 抓的時序資料，用一次性
-/// seed script 匯入，之後只有官方改版才會變動。用途：解碼經濟部商工行政資料開放平台「公司行號營業
-/// 項目代碼表」回傳的 Dgbas 欄位（4 碼細類代碼），展開成公司的完整大/中/小/細類產業階層。
-model TaxIndustryClassification {
-  code  String @id // 這一列自己所在那一層的代碼，例如大類"A"、中類"01"、小類"011"、細類"0111"、子類"0111-00"
-  level String // section | division | group | class | subclass，對應大/中/小/細/子類
-
-  sectionCode  String? @map("section_code") // 大類代碼（自己是大類時等於 code）
-  divisionCode String? @map("division_code") // 中類代碼
-  groupCode    String? @map("group_code") // 小類代碼
-  classCode    String? @map("class_code") // 細類代碼
-  subclassCode String? @map("subclass_code") // 子類代碼（自己是子類時等於 code）
-
-  nameZh String  @map("name_zh") // 行業名稱（中文）
-  nameEn String? @map("name_en") // Description（英文）
-
-  definition String? @map("definition") @db.Text // 定義說明
-  exclusions String? @map("exclusions") @db.Text // 「不包括」排除規則原文
-
-  priorRevisionCode String? @map("prior_revision_code") // 對照第8次修訂分類編號，用於串接歷史資料
-
-  companies CompanyIndustryClassification[]
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-
-  @@index([sectionCode])
-  @@index([divisionCode])
-  @@index([groupCode])
-  @@index([classCode])
-  @@map("tax_industry_classification")
-  @@schema("public")
-}
-
-/// 公司主檔，由外部呼叫 POST /api/ingest/company-profile 帶入「證券代碼＋統編」登記時建立/更新。
-/// taxId（統一編號）是 GCIS 商工登記資料本身的鍵，stockCode（證券代碼）是呼叫端自己配對好才傳進來
-/// 的——這個服務不驗證兩者是否真的對應同一家公司，也不負責從證券代碼反查統編（那屬於以證券代碼為
-/// 主鍵的服務，例如 oingg-mops-ts，的職責）。stockCode 設 @unique 是為了讓同一證券代碼不會意外登記
-/// 到兩個不同統編下。companySetupDate 故意存 GCIS 原始格式（民國年月日無分隔，例如"0760221"）不轉型
-/// 別，避免猜錯民國/西元換算規則。
-model CompanyProfile {
-  taxId     String @id @map("tax_id") // 統一編號（GCIS Business_Accounting_NO），8碼數字
-  stockCode String @unique @map("stock_code") // 證券代碼，登記時由呼叫端提供
-
-  companyName       String @map("company_name")
-  companyStatus     String @map("company_status")
-  companyStatusDesc String @map("company_status_desc")
-  companySetupDate  String @map("company_setup_date")
-  industryClassifications CompanyIndustryClassification[]
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-
-  @@map("company_profiles")
-  @@schema("public")
-}
-
 /// analysis-ts「數據中台」export 契約層的一部分（2026-08-31 應 analysis-ts 要求新增）。這不是內部
 /// 使用的表——export schema 只授權 SELECT 給一個專用的唯讀 role（etl_reader），analysis-ts 靠這張
 /// 表判斷某個 dataset 的某批資料是否「可信、已完成」：他們只認 status = 'success' 的紀錄，raw 表
@@ -504,43 +442,6 @@ model IngestionRun {
   @@index([dataset, status])
   @@map("ingestion_runs")
   @@schema("export")
-}
-
-/// 每家公司(用 CompanyProfile.taxId)對應「最多四個」官方行業分類代碼，來源是財政部財政資訊中心
-/// 《全國營業(稅籍)登記資料集》(data.gov.tw/dataset/9400，每日更新、約171萬列全國登記營業人，沒有
-/// 查詢式 API，只能整份下載再過濾)——不是拿 GCIS 的公司營業項目反推，那是完全不同的
-/// 代碼系統且一家公司常十幾筆、雜訊很大(2026-08-31 已用亞洲水泥 1102 實測驗證過對不起來)。
-///
-/// 這份稅籍登記資料裡，同一個統編會有多「列」(總公司+各分公司/廠各自的稅籍登記)，用「統一編號=自己、
-/// 總機構統一編號=空白」鎖定總公司本身那一列；但同一列裡本身又有最多四組行業代號欄位(主要行業代號+
-/// 次要1/2/3，實測驗證過統編22099131台積電同一列就有三組：主要261199「其他積體電路製造」、次要1
-/// 261111「矽晶圓製造」、次要2 282011「一次電池製造」)，早期版本只取主要那組，2026-09-02 改成四組
-/// 都存，用 rank 區分(0=主要，1/2/3=次要，對應行業代號/行業代號1/2/3 的原始欄位順序)。原始格式是
-/// 6碼數字(例如"233100")，轉換規則是前4碼+"-"+後2碼(例如"2331-00")，剛好對應
-/// TaxIndustryClassification 的 subclass 代碼格式——已用亞洲水泥實測驗證：財政部登記的 "233100"
-/// 對到 "2331-00"「水泥製造」，跟實際主業完全吻合，不是巧合。
-///
-/// 因為來源檔案是全國性、不分上市櫃，這裡刻意只收 CompanyProfile 裡已經追蹤的公司(見
-/// companyIndustryClassification/service.ts)，不落地全部171萬筆。每次重新 ingest 整批刪除重建(理由
-/// 來源是「當下完整清單」，不逐筆比對更新)。
-model CompanyIndustryClassification {
-  id      Int            @id @default(autoincrement())
-  taxId   String         @map("tax_id")
-  company CompanyProfile @relation(fields: [taxId], references: [taxId], onDelete: Cascade)
-
-  rank               Int                       @map("rank") // 0=主要(行業代號)，1/2/3=次要(行業代號1/2/3)，同一統編不會重複
-  industryCode       String                    @map("industry_code") // 轉換成 subclass 格式(例如"2331-00")，對應 TaxIndustryClassification.code
-  classification     TaxIndustryClassification @relation(fields: [industryCode], references: [code])
-  sourceIndustryName String                    @map("source_industry_name") // 財政部登記當下的行業名稱原文，供核對用(理論上該跟 classification.nameZh 一致)
-  registeredAddress  String?                   @map("registered_address") // 總公司登記地址，一併存下來供人工核對(同一統編的每一列重複存，換取查詢時不用額外 join)
-
-  fetchedAt DateTime @default(now()) @map("fetched_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-
-  @@unique([taxId, rank])
-  @@index([industryCode])
-  @@map("company_industry_classifications")
-  @@schema("public")
 }
 
 /// 投信投顧公會(SITCA)在 data.gov.tw 登記的境內基金基本資料(資料集43476)，由

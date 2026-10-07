@@ -40,12 +40,11 @@ Same domain-driven layout as oingg-mops-ts:
 ```
 src/
   index.ts              # app bootstrap (middleware, routes, error handler, server start)
-  routes.ts             # mounts every ingest domain under /api/ingest (the /api/query surface was removed 2026-10-02)
+  routes.ts             # mounts every ingest domain under /api/ingest; that is the only mount point
   adapters/
     prisma/              # single shared PrismaClient instance
     swagger/              # swagger-jsdoc setup, reads @swagger comments from domains/**
     cbc/                  # fetchCbcItem(itemCode) — the one place that talks to the CBC API
-    gcis/                 # fetchCompanyBusinessItems(no) — the one place that talks to the GCIS API
     <agency>/              # one folder per external data source, added as needed
   shared/
     config.ts            # env-derived config
@@ -57,7 +56,6 @@ src/
       route.ts              #   Express router + @swagger docs
       controller.ts          #   HTTP layer: parse request, call service, shape response
       service.ts              #   orchestrates: check DB → fetch from source → parse → persist
-                               #   (query-type domains skip the DB/persist step, see companyBusinessItems)
       parser.ts                #   raw source data -> typed rows (ingest-type domains only)
       ingest.ts (optional)      #   DB upsert logic, if it's more than a one-liner in service.ts
       types.ts                  #   domain-specific types
@@ -75,7 +73,8 @@ agency has the data you need.
    (or other structured export) and fetch a real response before writing
    anything — don't guess the schema from docs or the item name alone.
 2. If the source isn't CBC, add an adapter for it under `src/adapters/`
-   following the pattern in `adapters/cbc/index.ts` or `adapters/gcis/index.ts`.
+   following the pattern in `adapters/cbc/index.ts` (JSON API) or
+   `adapters/fred/client.ts` (fixed-path CSV).
 3. Add a `src/domains/<domain>/` folder following the layout above.
 4. Add a Prisma model in `prisma/schema.prisma` (field naming / `@map`
    conventions should match oingg-mops-ts's schema) and run
@@ -105,11 +104,18 @@ docs are served at `/api-docs`.
 All `/api/ingest/*` routes require a `TASK_SECRET` (via the `X-Task-Secret`
 header or `task_secret` query param) and are rate-limited to one trigger per
 dataset per 60s — see `src/shared/middleware.ts` / `src/shared/rateLimiter.ts`.
-Every route in this service is now an ingest route; there is no unprotected
-surface. The `/api/query/*` routes (company profile lookup, GCIS business-item
-passthrough, tax industry classification reference) were removed on 2026-10-02
-— no service in the ecosystem called them. Downstream reads go through the
-`export` schema views, not HTTP.
+Every route in this service is an ingest route, and every one of them is
+triggered by Cloud Scheduler; there is no unprotected surface and no endpoint
+that takes a request body. Downstream reads go through the `export` schema
+views, not HTTP.
+
+Two rounds of removal got it to that shape: the `/api/query/*` routes went on
+2026-10-02 (nothing in the ecosystem called them), and the company industry
+classification group — the GCIS adapter, `POST /api/ingest/company-profile`
+and its weekly refresh, three tables and their export view — went on
+2026-10-07 after analysis-ts switched Altman Z''s manufacturing check to
+exchange sectors and stopped reading it. Rebuild history is in git before
+`7490e4d`.
 
 ## Cloud Scheduler
 

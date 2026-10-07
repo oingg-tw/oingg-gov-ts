@@ -17,16 +17,21 @@ import monthlyUnemploymentRateRouter from '@/domains/monthlyUnemploymentRate/rou
 import monthlyBusinessCycleIndicatorRouter from '@/domains/monthlyBusinessCycleIndicator/route';
 import fundBasicInfoRouter from '@/domains/fundBasicInfo/route';
 import fundDailyNavRouter from '@/domains/fundDailyNav/route';
-import companyProfileIngestRouter from '@/domains/companyProfile/ingestRoute';
-import companyIndustryClassificationRouter from '@/domains/companyIndustryClassification/route';
 import { requireTaskSecret } from '@/shared/middleware';
 import { ingestRateLimit } from '@/shared/rateLimiter';
 // 每新增一個 domain（例如 exchangeRate、interestRate），在這裡 import 其 route.ts 並掛進 ingestRouter。
 //
-// 2026-10-02 起只剩 /api/ingest 一個掛載點。原本還有 /api/query 掛三個查詢型 domain
-// （companyProfile 的 queryRoute、companyBusinessItems、taxIndustryClassification，共 7 支端點），
-// 整組移除——查過 twse-ts / tpex-ts / mops-ts / analysis-ts / bff-ts 的原始碼都沒有呼叫，
-// analysis-ts 是直接讀 export schema 繞過 HTTP，bff-ts 則是硬規則只跟 analysis-ts 溝通。
+// 2026-10-07 起 gov-ts 只有 /api/ingest，而且每一支都是排程觸發的——沒有查詢面，也沒有需要
+// 外部帶 body 呼叫的端點。
+//
+// 兩波移除的紀錄：
+// - 2026-10-02 拿掉 /api/query 的 7 支端點（companyProfile 查詢、companyBusinessItems、
+//   taxIndustryClassification）。查過 twse-ts / tpex-ts / mops-ts / analysis-ts / bff-ts 都沒有呼叫。
+// - 2026-10-07 拿掉公司產業分類整組（companyProfile 的 ingest、companyIndustryClassification、
+//   GCIS adapter、三張表與 export view）。那組是為了「用財政部稅籍行業別做公司產業分類」而建的，
+//   唯一的下游是 analysis-ts 的 Altman Z″ 製造業判斷；analysis-ts 2026-10-07 改用交易所類股，
+//   兩市統一，不再讀 gov 任何產業分類 view（理由是上市用稅籍、上櫃用交易所分類會讓兩市的
+//   「非製造業」定義不一致）。使用者裁定整組刪除。要重建的話 git 歷史在 7490e4d 之前。
 //
 // ingestRouter 整層掛了 requireTaskSecret + ingestRateLimit（跟 oingg-mops-ts 的做法一致：掛在
 // router 層級一次涵蓋全部現有跟未來的 /api/ingest/*，不用每個 route.ts 各自標註）——這幾個端點會
@@ -58,8 +63,6 @@ ingestRouter.use(monthlyUnemploymentRateRouter);
 ingestRouter.use(monthlyBusinessCycleIndicatorRouter);
 ingestRouter.use(fundBasicInfoRouter);
 ingestRouter.use(fundDailyNavRouter);
-ingestRouter.use(companyProfileIngestRouter);
-ingestRouter.use(companyIndustryClassificationRouter);
 
 router.use('/api/ingest', ingestRouter);
 

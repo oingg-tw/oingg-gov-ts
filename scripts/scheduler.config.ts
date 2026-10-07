@@ -19,20 +19,16 @@
  * - fund-daily-nav 每天 22:00：SITCA 的 nav.csv 是 T 日晚間陸續發布，22:00 抓到的是 T 日部分
  *   （實測 2026-09-21 當天 467 檔）；檔案本身是 2 個交易日的滾動窗口，隔天 22:00 那次會把 T 日補齊
  *   （09-18 最後是 4445 檔），所以不用另外排隔天早上的補抓。
- * - 三支 long-running（refresh-tracked 週一、industry-classification 及 labor-broker-tax-registration
- *   每月 3 日）attemptDeadline
- *   設到 Cloud Scheduler 上限 30 分鐘；refresh-tracked 實測 19 分鐘（Cloud Logging latency
- *   1139s），預設 3 分鐘會讓 Scheduler 在 job 還在跑時判定失敗並重試，造成重疊執行。其他 job
- *   都在 10 秒內完成，維持預設 180s。industry-classification 排到 04:02，跟 03:32 開始、跑 19 分鐘
- *   的 refresh-tracked 錯開半小時以上，週一剛好是 3 日時兩支不會同時佔著同一個 Cloud Run instance。
+ * - 一支 long-running（labor-broker-tax-registration，每月 3 日）attemptDeadline 設到 Cloud Scheduler
+ *   上限 30 分鐘：它要串流掃完財政部那份 322MB 稅籍檔（實測數分鐘），預設 180s 會讓 Scheduler 在
+ *   job 還在跑時判定失敗並重試，造成重疊執行。其他 job 都在 10 秒內完成，維持預設 180s。
+ *   （2026-10-07 之前還有兩支——company-profile-refresh-tracked-weekly 與
+ *   company-industry-classification-monthly——隨公司產業分類整組移除。）
  *
  * 新增的 cbc-policy-rate-daily 刻意每天跑而不是跟公債殖利率一樣每月 5 日：這份是「利率調整事件」
  * 序列（每列一次理監事會決議的生效日），用途是疊在股價上看事件，理監事會在 3/6/9/12 月中下旬
  * 開會，月初才抓會晚兩週以上；請求本身是秒級的 JSON，每天打沒有成本。
- *
- * 刻意不排進這裡的：
- * - POST /api/ingest/company-profile：需要 body（證券代碼＋統編陣列），靜態 Cloud Scheduler job
- *   給不了，登記新公司是由外部（twse-ts/tpex-ts 的 company profile 流程）主動呼叫。
+
  */
 export interface SchedulerJobConfig {
   name: string;
@@ -89,21 +85,10 @@ export const schedulerConfig = {
     // 停業/廢止，評鑑會補上新年度），每月跑一次確保狀態新鮮，成本只有兩個幾百 KB 的 CSV。
     { name: 'labor-broker-license-monthly', path: '/api/ingest/labor-broker-license', schedule: '2 6 5 * *' },
     { name: 'labor-broker-evaluation-monthly', path: '/api/ingest/labor-broker-evaluation', schedule: '7 6 5 * *' },
-    // 三支 long-running job，理由見檔頭
-    {
-      name: 'company-profile-refresh-tracked-weekly',
-      path: '/api/ingest/company-profile/refresh-tracked',
-      schedule: '32 3 * * 1',
-      attemptDeadline: '1800s',
-    },
-    {
-      name: 'company-industry-classification-monthly',
-      path: '/api/ingest/company-industry-classification',
-      schedule: '2 4 3 * *',
-      attemptDeadline: '1800s',
-    },
-    // 跟 company-industry-classification 一樣要掃完整份 322MB 稅籍檔（實測數分鐘），排在它後面一小時
-    // 避免兩支同時佔著同一個 Cloud Run instance 下載同一份大檔。
+    // 唯一的 long-running job，理由見檔頭
+    // 要串流掃完整份 322MB 稅籍檔（實測數分鐘）。2026-10-07 之前 04:02 還有一支
+    // company-industry-classification 掃同一份檔案，這支刻意排在它後面一小時避免同時下載；
+    // 那支已移除，這個時間保留不動（沒有理由改，改了還要重新確認撞分鐘）。
     {
       name: 'labor-broker-tax-registration-monthly',
       path: '/api/ingest/labor-broker-tax-registration',

@@ -2,11 +2,22 @@ import { createInterface } from 'node:readline';
 import { Readable } from 'node:stream';
 import prisma from '@/adapters/prisma/index';
 import { FIA_BUSINESS_TAX_REGISTRY_CSV_URL, parseFiaBusinessTaxRegistryLine } from '@/adapters/fia/client';
-import { toSubclassCode } from '@/domains/companyIndustryClassification/service';
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
 import { LABOR_BROKER_INDUSTRY_CODES, type LaborBrokerTaxRegistrationPoint } from '@/domains/laborBrokerTaxRegistration/types';
 
 const EXPORT_DATASET = 'labor_broker_tax_registration';
+
+// 財政部稅籍檔的行業代號是 6 碼數字（例如 "233100"），《稅務行業標準分類》的子類代碼格式是
+// 前4碼-後2碼（例如 "2331-00"）——用亞洲水泥（統編 03244509）實測驗證過這個轉換規則跟真實資料
+// 對得起來（"233100" 對到 "2331-00" 水泥製造，符合實際主業）。
+//
+// 2026-10-07 從已移除的 companyIndustryClassification 搬過來：那個 domain 整組刪掉之後，這裡是
+// 唯一的使用者。注意 gov-ts 現在沒有 tax_industry_classification 那張代碼字典了，所以轉換出來的
+// 代碼不會再被對照回中文行業名稱——這支只拿它跟 LABOR_BROKER_INDUSTRY_CODES 比對，不需要字典。
+const toSubclassCode = (raw: string): string | null => {
+  if (!/^\d{6}$/.test(raw)) return null;
+  return `${raw.slice(0, 4)}-${raw.slice(4, 6)}`;
+};
 
 export interface IngestLaborBrokerTaxRegistrationResult {
   success: boolean;
@@ -27,7 +38,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', rowCount: number
 };
 
 // 串流全國營業稅籍登記檔（約 322MB、171 萬列），只留行業代號落在 LABOR_BROKER_INDUSTRY_CODES 的
-// 業者——做法跟 companyIndustryClassification 的 streamMatchRegistry 相同（逐行處理、不整份載進記憶體），
+// 業者——逐行處理、不整份載進記憶體（322MB），
 // 差別是那邊用「統編白名單」過濾，這邊用「行業代號」過濾。
 //
 // 只收總公司列（總機構統一編號為空）：分支機構在這份檔案裡是獨立列、但查核業者合不合法看的是法人
