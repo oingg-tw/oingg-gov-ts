@@ -7,7 +7,7 @@ import type { FundBasicInfoPoint } from '@/domains/fundBasicInfo/types';
 // data.gov.tw 資料集 43476，固定路徑 CSV，無查詢參數。這份檔案本身是「當月快照」，不是累積歷史
 // （已用真實檔案核對過：單次回應只有一個年月），每次 ingest 只會新增當月一批，不會補到過去的月份。
 const FUND_BASIC_INFO_CSV_URL = 'https://www.sitca.org.tw/MemberK0000/F/03/43476投信投顧公會境內基金基本資料.csv';
-const EXPORT_DATASET = 'fund_basic_info'; // 對應 export.fund_basic_info view
+const EXPORT_DATASET = 'v_fund_profiles'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestFundBasicInfoResult {
   success: boolean;
