@@ -572,8 +572,11 @@ model FundDailyNav {
 /// ⚠️ 這份開放資料落後國發會自己的公告（2026-10-10 核對原始新聞稿）：國發會 114 年 2 月 5 日新聞稿
 /// 「臺灣第15次景氣循環谷底認定為2023年4月」，收縮期 15 個月、全循環 86 個月，並宣布已邁入第 16 次
 /// 循環；但資料集最後更新是 2024-03-22，第 15 循環的谷底2與收縮期仍是空的，也沒有第 16 循環那一列。
-/// 所以 troughEnd 為 null 只代表「這份資料集尚未更新」，不代表國發會尚未認定。**刻意不手動補值**：
-/// 補了這張表就變成一半來自資料集、一半來自新聞稿，下游分不出來。資料集更新時整批重建會自然帶進來。
+///
+/// 使用者 2026-10-10 裁定可用國發會原始公告補足（見 businessCycleReferenceDate/supplements.ts）：
+/// 只補資料集留空的欄位，資料集有值就以資料集為準。**哪些欄位是補的記在 supplementedFields，出處記在
+/// supplementSource**——supplementedFields 為空陣列的列就是純資料集原值。資料集哪天跟上，那些欄位就
+/// 不再有空可補，supplementedFields 會自然變空。
 model BusinessCycleReferenceDate {
   cycleNo Int @id @map("cycle_no") // 第幾次循環
 
@@ -584,6 +587,9 @@ model BusinessCycleReferenceDate {
   expansionMonths   Int? @map("expansion_months") // 擴張期月數（來源原值）
   contractionMonths Int? @map("contraction_months") // 收縮期月數（來源原值）
   totalMonths       Int? @map("total_months") // 全循環月數（來源原值）
+
+  supplementedFields String[] @default([]) @map("supplemented_fields") // 哪些欄位是用公告補的（空=全是資料集原值）
+  supplementSource   String?  @map("supplement_source") // 補值出處：公告標題、日期、網址
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")

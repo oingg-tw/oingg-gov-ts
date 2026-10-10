@@ -35,3 +35,39 @@ describe('parseBusinessCycleReferenceDates', () => {
     expect(() => parseBusinessCycleReferenceDates('循環,谷底,高峰\n第1循環,195411,195511\n')).toThrow(/表頭不符/);
   });
 });
+
+import { applySupplements } from '@/domains/businessCycleReferenceDate/supplements';
+
+describe('applySupplements', () => {
+  const base = { troughStart: new Date(Date.UTC(2016, 1, 1)), peak: new Date(Date.UTC(2022, 0, 1)), troughEnd: null, expansionMonths: 71, contractionMonths: null, totalMonths: null };
+  const sup = [{ cycleNo: 15, values: { troughEnd: new Date(Date.UTC(2023, 3, 1)), contractionMonths: 15, totalMonths: 86 }, source: 'NDC 2025-02-05' }];
+
+  it('fills only the fields the dataset left empty, and records which', () => {
+    const [p] = applySupplements([{ cycleNo: 15, ...base }], sup, () => {});
+    expect(p!.troughEnd?.toISOString().slice(0, 10)).toBe('2023-04-01');
+    expect(p!.supplementedFields.sort()).toEqual(['contractionMonths', 'totalMonths', 'troughEnd']);
+    expect(p!.supplementSource).toBe('NDC 2025-02-05');
+    expect(p!.expansionMonths).toBe(71); // 資料集原值不動
+  });
+
+  it('keeps the dataset value and warns when the two disagree', () => {
+    const warnings: string[] = [];
+    const [p] = applySupplements([{ cycleNo: 15, ...base, contractionMonths: 14 }], sup, (m) => warnings.push(m));
+    expect(p!.contractionMonths).toBe(14);
+    expect(p!.supplementedFields).not.toContain('contractionMonths');
+    expect(warnings.join()).toMatch(/不一致/);
+  });
+
+  it('marks nothing as supplemented once the dataset has caught up', () => {
+    const caughtUp = { ...base, troughEnd: new Date(Date.UTC(2023, 3, 1)), contractionMonths: 15, totalMonths: 86 };
+    const [p] = applySupplements([{ cycleNo: 15, ...caughtUp }], sup, () => {});
+    expect(p!.supplementedFields).toEqual([]);
+    expect(p!.supplementSource).toBeNull();
+  });
+
+  it('creates a row the dataset does not have yet', () => {
+    const points = applySupplements([], [{ cycleNo: 16, values: { troughStart: new Date(Date.UTC(2023, 3, 1)) }, source: 'NDC' }], () => {});
+    expect(points).toHaveLength(1);
+    expect(points[0]).toMatchObject({ cycleNo: 16, peak: null, troughEnd: null, supplementedFields: ['troughStart'] });
+  });
+});
