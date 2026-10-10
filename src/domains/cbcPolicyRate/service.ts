@@ -5,7 +5,7 @@ import { parseCbcPolicyRate } from '@/domains/cbcPolicyRate/parser';
 import type { CbcPolicyRatePoint } from '@/domains/cbcPolicyRate/types';
 
 const ITEM_CODE = 'EG28D01en';
-const EXPORT_DATASET = 'cbc_policy_rate'; // 對應 export.cbc_policy_rate view，見 prisma/schema.prisma 的 IngestionRun 註解
+const EXPORT_DATASET = 'v_cbc_policy_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestCbcPolicyRateResult {
   success: boolean;

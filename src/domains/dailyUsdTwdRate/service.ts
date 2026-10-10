@@ -5,7 +5,7 @@ import { parseDailyUsdTwdRate } from '@/domains/dailyUsdTwdRate/parser';
 import type { DailyUsdTwdRatePoint } from '@/domains/dailyUsdTwdRate/types';
 
 const ITEM_CODE = 'EG51D01en';
-const EXPORT_DATASET = 'daily_usd_twd_rate'; // 對應 export.daily_usd_twd_rate view
+const EXPORT_DATASET = 'v_daily_usd_twd_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestDailyUsdTwdRateResult {
   success: boolean;

@@ -3,7 +3,7 @@ import { fetchMolCsv } from '@/adapters/mol/client';
 import { MOL_RESOURCE_ID, parseLaborBrokerEvaluation } from '@/domains/laborBrokerEvaluation/parser';
 import type { LaborBrokerEvaluationPoint } from '@/domains/laborBrokerEvaluation/types';
 
-const EXPORT_DATASET = 'labor_broker_evaluation';
+const EXPORT_DATASET = 'v_labor_broker_evaluations'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestLaborBrokerEvaluationResult {
   success: boolean;

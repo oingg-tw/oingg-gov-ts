@@ -6,7 +6,7 @@ import type { MonthlyCpiPoint } from '@/domains/monthlyCpi/types';
 
 // 主計總處固定路徑統計檔案，沒有查詢參數，每次都回傳整段歷史（1981M01 至今）。
 const CPI_XML_URL = 'https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230555/pr0101a1m.xml';
-const EXPORT_DATASET = 'monthly_cpi'; // 對應 export.monthly_cpi view
+const EXPORT_DATASET = 'v_monthly_cpis'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestMonthlyCpiResult {
   success: boolean;

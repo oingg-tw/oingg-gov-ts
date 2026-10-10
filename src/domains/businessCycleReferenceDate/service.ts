@@ -4,7 +4,7 @@ import { parseBusinessCycleReferenceDates } from '@/domains/businessCycleReferen
 import type { BusinessCycleReferenceDatePoint } from '@/domains/businessCycleReferenceDate/types';
 import { applySupplements, type SupplementedPoint } from '@/domains/businessCycleReferenceDate/supplements';
 
-const EXPORT_DATASET = 'business_cycle_reference_date';
+const EXPORT_DATASET = 'v_business_cycle_reference_dates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestBusinessCycleReferenceDateResult {
   success: boolean;

@@ -5,7 +5,7 @@ import { parseMonthlyGovBondYield10y } from '@/domains/govBondYield10y/parser';
 import type { MonthlyGovBondYield10yPoint } from '@/domains/govBondYield10y/types';
 
 const ITEM_CODE = 'EG43M01en';
-const EXPORT_DATASET = 'monthly_gov_bond_yield_10y'; // 對應 export.monthly_gov_bond_yield_10y view，見 prisma/schema.prisma 的 IngestionRun 註解
+const EXPORT_DATASET = 'v_monthly_gov_bond_yields_10y'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestGovBondYield10yResult {
   success: boolean;

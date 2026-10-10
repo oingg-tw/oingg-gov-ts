@@ -8,7 +8,7 @@ import type { FundDailyNavPoint } from '@/domains/fundDailyNav/types';
 // （滾動窗口，不是只有最新一天），下次 ingest 會有 1 天重疊——用 (trade_date, beneficiary_code)
 // 唯一約束處理重疊，不會重複寫入。
 const FUND_DAILY_NAV_CSV_URL = 'https://www.sitca.org.tw/MemberK0000/F/03/nav.csv';
-const EXPORT_DATASET = 'fund_daily_nav'; // 對應 export.fund_daily_nav view
+const EXPORT_DATASET = 'v_fund_daily_navs'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestFundDailyNavResult {
   success: boolean;

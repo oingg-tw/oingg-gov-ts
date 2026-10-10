@@ -9,7 +9,7 @@ import {
 } from '@/domains/ecbPolicyRate/parser';
 import type { EcbPolicyRatePoint } from '@/domains/ecbPolicyRate/types';
 
-const EXPORT_DATASET = 'ecb_policy_rate';
+const EXPORT_DATASET = 'v_ecb_policy_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestEcbPolicyRateResult {
   success: boolean;

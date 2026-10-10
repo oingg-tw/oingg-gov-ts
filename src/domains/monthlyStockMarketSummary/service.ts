@@ -5,7 +5,7 @@ import { parseMonthlyStockMarketSummary } from '@/domains/monthlyStockMarketSumm
 import type { MonthlyStockMarketSummaryPoint } from '@/domains/monthlyStockMarketSummary/types';
 
 const ITEM_CODE = 'EG27M01en';
-const EXPORT_DATASET = 'monthly_stock_market_summary'; // 對應 export.monthly_stock_market_summary view
+const EXPORT_DATASET = 'v_monthly_stock_market_summaries'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestMonthlyStockMarketSummaryResult {
   success: boolean;

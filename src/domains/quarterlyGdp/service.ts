@@ -5,7 +5,7 @@ import { parseQuarterlyGdp } from '@/domains/quarterlyGdp/parser';
 import type { QuarterlyGdpPoint } from '@/domains/quarterlyGdp/types';
 
 const GDP_XML_URL = 'https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230514/na8102a7q.xml';
-const EXPORT_DATASET = 'quarterly_gdp'; // 對應 export.quarterly_gdp view
+const EXPORT_DATASET = 'v_quarterly_gdps'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestQuarterlyGdpResult {
   success: boolean;

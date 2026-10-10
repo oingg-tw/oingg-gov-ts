@@ -5,7 +5,7 @@ import { parseMonthlyFiveMajorBankRate } from '@/domains/monthlyFiveMajorBankRat
 import type { MonthlyFiveMajorBankRatePoint } from '@/domains/monthlyFiveMajorBankRate/types';
 
 const ITEM_CODE = 'EG2BM01en';
-const EXPORT_DATASET = 'monthly_five_major_bank_rate'; // 對應 export.monthly_five_major_bank_rate view
+const EXPORT_DATASET = 'v_monthly_five_major_bank_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestMonthlyFiveMajorBankRateResult {
   success: boolean;

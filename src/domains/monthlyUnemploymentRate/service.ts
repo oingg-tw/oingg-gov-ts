@@ -5,7 +5,7 @@ import { parseMonthlyUnemploymentRate } from '@/domains/monthlyUnemploymentRate/
 import type { MonthlyUnemploymentRatePoint } from '@/domains/monthlyUnemploymentRate/types';
 
 const UNEMPLOYMENT_XML_URL = 'https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230038/mp0101a07.xml';
-const EXPORT_DATASET = 'monthly_unemployment_rate'; // 對應 export.monthly_unemployment_rate view
+const EXPORT_DATASET = 'v_monthly_unemployment_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestMonthlyUnemploymentRateResult {
   success: boolean;

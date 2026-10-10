@@ -4,7 +4,7 @@ import { fetchBusinessCycleIndicatorCsv } from '@/adapters/ndc/client';
 import { parseMonthlyBusinessCycleIndicator } from '@/domains/monthlyBusinessCycleIndicator/parser';
 import type { MonthlyBusinessCycleIndicatorPoint } from '@/domains/monthlyBusinessCycleIndicator/types';
 
-const EXPORT_DATASET = 'monthly_business_cycle_indicator'; // 對應 export.monthly_business_cycle_indicator view
+const EXPORT_DATASET = 'v_monthly_business_cycle_indicators'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestMonthlyBusinessCycleIndicatorResult {
   success: boolean;

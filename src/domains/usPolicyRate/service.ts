@@ -8,7 +8,7 @@ import {
 } from '@/domains/usPolicyRate/parser';
 import type { UsPolicyRatePoint } from '@/domains/usPolicyRate/types';
 
-const EXPORT_DATASET = 'us_policy_rate';
+const EXPORT_DATASET = 'v_us_policy_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestUsPolicyRateResult {
   success: boolean;
