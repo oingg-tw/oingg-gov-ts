@@ -79,6 +79,8 @@ export const schedulerConfig = {
     { name: 'quarterly-gdp-quarterly', path: '/api/ingest/quarterly-gdp', schedule: '17 3 20 2,5,8,11 *' },
     // 國發會景氣指標 ZIP（ws.ndc.gov.tw），官方每月 27 日發布
     { name: 'monthly-business-cycle-indicator-monthly', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '22 3 28 * *' },
+    // 歷次景氣循環峰谷日期：不定期更新（國發會認定轉折點才補），每月跟景氣燈號同一天順便打一次，十幾列。
+    { name: 'business-cycle-reference-date-monthly', path: '/api/ingest/business-cycle-reference-date', schedule: '33 3 28 * *' },
     // 投信投顧公會 CSV（www.sitca.org.tw）
     { name: 'fund-basic-info-weekly', path: '/api/ingest/fund-basic-info', schedule: '27 3 * * 2' },
     { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '2 22 * * *' },

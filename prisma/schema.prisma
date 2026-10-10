@@ -560,3 +560,32 @@ model FundDailyNav {
   @@map("fund_daily_nav")
   @@schema("public")
 }
+
+/// 台灣歷次景氣循環峰谷日期，由 /api/ingest/business-cycle-reference-date 觸發向國發會抓取
+/// （data.gov.tw/dataset/39486，固定路徑 CSV，GODL v1）。一列一次循環：谷底1 → 高峰 → 谷底2。
+/// 跟 MonthlyBusinessCycleIndicator（逐月景氣指標與燈號，dataset 6099）是兩份不同的資料：那份是
+/// 每個月的指標值，這份是國發會事後認定的轉折點，用途是把股價或其他總經序列切成擴張／收縮期對照。
+///
+/// 日期欄位來源是 YYYYMM，存成該月 1 日的 DATE——**粒度是月不是日**。三個月數照來源原值存，不從
+/// 日期自行推算（gov-ts 只落地）。來源最後一列「平均」是彙總列，不存。
+///
+/// ⚠️ 這份開放資料可能落後國發會自己的公告：2026-10-10 實測第 15 循環的谷底2與收縮期仍是空的，
+/// 資料集最後更新 2024-03-22；媒體報導國發會已認定谷底（尚未核對原始公告）。所以 troughEnd 為 null
+/// 不保證「國發會尚未認定」，只代表「這份資料集尚未更新」。每次整批重建，資料集補上時自然進來。
+model BusinessCycleReferenceDate {
+  cycleNo Int @id @map("cycle_no") // 第幾次循環
+
+  troughStart DateTime  @map("trough_start") @db.Date // 谷底1（循環起點）
+  peak        DateTime? @map("peak") @db.Date // 高峰
+  troughEnd   DateTime? @map("trough_end") @db.Date // 谷底2（循環終點）
+
+  expansionMonths   Int? @map("expansion_months") // 擴張期月數（來源原值）
+  contractionMonths Int? @map("contraction_months") // 收縮期月數（來源原值）
+  totalMonths       Int? @map("total_months") // 全循環月數（來源原值）
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("business_cycle_reference_date")
+  @@schema("public")
+}

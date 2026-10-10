@@ -16,6 +16,7 @@ import monthlyCpiRouter from '@/domains/monthlyCpi/route';
 import quarterlyGdpRouter from '@/domains/quarterlyGdp/route';
 import monthlyUnemploymentRateRouter from '@/domains/monthlyUnemploymentRate/route';
 import monthlyBusinessCycleIndicatorRouter from '@/domains/monthlyBusinessCycleIndicator/route';
+import businessCycleReferenceDateRouter from '@/domains/businessCycleReferenceDate/route';
 import fundBasicInfoRouter from '@/domains/fundBasicInfo/route';
 import fundDailyNavRouter from '@/domains/fundDailyNav/route';
 import { requireTaskSecret } from '@/shared/middleware';
@@ -63,6 +64,7 @@ ingestRouter.use(monthlyCpiRouter);
 ingestRouter.use(quarterlyGdpRouter);
 ingestRouter.use(monthlyUnemploymentRateRouter);
 ingestRouter.use(monthlyBusinessCycleIndicatorRouter);
+ingestRouter.use(businessCycleReferenceDateRouter);
 ingestRouter.use(fundBasicInfoRouter);
 ingestRouter.use(fundDailyNavRouter);
 

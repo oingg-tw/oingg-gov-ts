@@ -29,3 +29,18 @@ export const fetchBusinessCycleIndicatorCsv = async (): Promise<string> => {
 
   return entry.getData().toString('utf8');
 };
+
+// 國發會「台灣歷次景氣循環峰谷日期」（data.gov.tw/dataset/39486），固定路徑 CSV，GODL v1。URL 是
+// 打 https://data.gov.tw/api/v2/rest/dataset/39486 查到的 resourceDownloadUrl 原文（2026-10-10），
+// 跟上面那支 ZIP 一樣是國發會下載服務自己的 base64 路徑格式。檔案只有十幾列、不定期更新。
+const BUSINESS_CYCLE_REFERENCE_DATES_CSV_URL =
+  'https://ws.ndc.gov.tw/Download.ashx?u=LzAwMS9hZG1pbmlzdHJhdG9yLzEwL3JlbGZpbGUvMC85ODYyL2VkNWU3NDAwLTM3OGYtNDA3YS05NmZhLWQ2ZGJkMjI0MzJkMS5jc3Y%3d&n=5Y%2bw54Gj5q235qyh5pmv5rCj5b6q55Kw5bOw6LC35pel5pyfLmNzdg%3d%3d&icon=..csv';
+
+// 回傳 CSV 原始文字（UTF-8 with BOM，2026-10-10 實測）。
+export const fetchBusinessCycleReferenceDatesCsv = async (): Promise<string> => {
+  const response = await fetch(BUSINESS_CYCLE_REFERENCE_DATES_CSV_URL, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+  if (!response.ok) {
+    throw new Error(`國發會景氣循環峰谷日期 CSV 下載失敗：HTTP ${response.status}`);
+  }
+  return response.text();
+};
