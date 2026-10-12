@@ -25,3 +25,24 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/coverage-v8"
+      # 其餘套件的 minor／patch 合成一個 PR（生態系 2026-10-13 對齊的做法），major 各自一個 PR。
+      # Dependabot 把每個套件分到「第一個符合的組」，所以這組要放最後：上面三組版本連動的套件不會被
+      # 拆進來。
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Dockerfile 的 base image（node）。跟 npm 同一個節奏。
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # Node major（22 → 24）不自動開 PR：ultimate-express 依賴的 uWebSockets.js 是 native module，
+      # 綁 Node ABI（見 Dockerfile 檔頭），換 major 要先確認它有對應版本的 binary，是一次刻意的升級，
+      # 不是例行更新。22 版內的 minor／patch 照收（安全修補在這裡）。
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
