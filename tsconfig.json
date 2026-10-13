@@ -34,6 +34,11 @@
       "@/*": ["./src/*"]
     },
 
+    /* TypeScript 7 把 types 的預設改成 []，不再自動載入 node_modules/@types 底下的全部套件。現在不寫也能
+       過，只是因為有檔案 import node:stream 之類的模組、連帶把 @types/node 的全域宣告（process、Buffer）
+       帶進來——那是巧合，不是設定。明確寫出來，單獨用 process 的檔案才不會依賴別的檔案的 import。 */
+    "types": ["node"],
+
     /* Build options */
     "outDir": "dist",
     "rootDir": "src"

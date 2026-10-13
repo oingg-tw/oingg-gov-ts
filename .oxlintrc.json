@@ -1,0 +1,11 @@
+{
+  // 規則要嘛 error、要嘛關掉，不留 warn（使用者 2026-10-13 核准的跨 repo 原則）：warn 不會讓 CI 失敗，
+  // 實際上沒人看，只會越積越多。外掛明確寫出來，免得 oxlint 改預設值時規則集跟著變；CI 另外帶
+  // --deny-warnings 當最後一道防線。改完用 `oxlint --print-config` 比對過：規則集合跟原本的預設一樣，
+  // 只有等級從 warn 變成 deny。
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["unicorn", "typescript", "oxc"],
+  "categories": {
+    "correctness": "error"
+  }
+}
