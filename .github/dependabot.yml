@@ -1,56 +1,89 @@
+# Dependabot（2026-10-13，使用者要求所有 oingg 專案一律採用「development 自動、main 手動」）。
+#
+# ⚠️ 兩個預設分支的後果（GitHub 官方文件）：
+#   1. 這份設定只從「預設分支」讀——GitHub 上是 main，所以檔案必須存在 main 才會生效。
+#   2. **安全性更新永遠針對預設分支**：掃 main 上的 manifest、PR 也開到 main，不會自動合併，由人審。
+#      target-branch 只影響版本更新。所以 main 和 development 要定期同步，安全警示才比對得到現行依賴。
+#
+# 版本更新打到 development；CI（.github/workflows/ci.yml）通過後，非 major 的由合併 job 自動合併。
+# development 合併到 main 一律由人來做——Cloud Build 的 deploy-on-push-to-main 只接 main，所以部署永遠經過人。
+#
+# - 每週一 09:00（台北）一次，同時最多 5 個 PR。
+# - cooldown 7 天：新版上架滿 7 天才開版本更新 PR（預設 3 天）。2025 年 npm 的供應鏈攻擊多半是發惡意的
+#   patch 版、幾天內就被發現下架，等一週可以避開。只影響版本更新，安全性更新不受限制。
 version: 2
 updates:
-  - package-ecosystem: "npm" # pnpm-lock.yaml 也吃這個 ecosystem key，Dependabot 支援 pnpm workspace
+  - package-ecosystem: "npm" # pnpm-lock.yaml 也吃這個 ecosystem key
     directory: "/"
+    target-branch: "development"
     schedule:
       interval: "weekly"
-    # 新版上架滿 7 天才開版本更新 PR（預設 3 天）。2025 年 npm 的供應鏈攻擊多半是發惡意的 patch 版、
-    # 幾天內就被發現下架，等一週可以避開。只影響版本更新，安全性更新不受 cooldown 限制。
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Taipei"
+    open-pull-requests-limit: 5
     cooldown:
       default-days: 7
     groups:
-      # zod 跟 zod-to-openapi 版本互相牽制（2026-09-04 才把 zod-to-openapi 從 7.3.4 升到 9.1.0，
-      # 連帶把 zod 從 3 升到 4——9.x 的 peer 要求 zod ^4.0.0）。分到同一組讓 Dependabot 只開「兩個
-      # 一起升」的 PR，不用 ignore 規則整個擋掉更新（那樣連安全性修補都收不到）。
+      # zod 跟 zod-to-openapi 版本互相牽制（zod-to-openapi 9.x 的 peer 要求 zod ^4），分同一組只開「兩個
+      # 一起升」的 PR，不用 ignore 整個擋掉（那樣連安全性修補都收不到）。
       zod:
         patterns:
           - "zod"
           - "@asteasolutions/zod-to-openapi"
-      # 同樣道理：@prisma/client、@prisma/adapter-pg、prisma（CLI）三個套件版本必須完全一致，
-      # 混版本會在執行期出錯，不是型別層級的問題，分開升級風險很高。
+      # @prisma/client、@prisma/adapter-pg、prisma（CLI）三個版本必須完全一致，混版本在執行期才出錯。
       prisma:
         patterns:
           - "prisma"
           - "@prisma/client"
           - "@prisma/adapter-pg"
-      # vitest 跟 @vitest/coverage-v8 也必須版本一致（2026-09-04 裝 coverage-v8 時已確認：裝
-      # @latest 會抓到比 vitest 新的版本、造成 peer 不相容）。
+      # vitest 跟 @vitest/coverage-v8 必須版本一致，否則 peer 不相容。
       vitest:
         patterns:
           - "vitest"
           - "@vitest/coverage-v8"
-      # 其餘套件的 minor／patch 合成一個 PR（生態系 2026-10-13 對齊的做法），major 各自一個 PR。
-      # Dependabot 把每個套件分到「第一個符合的組」，所以這組要放最後：上面三組版本連動的套件不會被
-      # 拆進來。
+      # 其餘套件的 minor／patch 合成一個 PR，major 各自一個 PR（要人看 breaking change）。
+      # Dependabot 把套件分到「第一個符合的組」，所以這組放最後，上面三組連動的套件不會被拆進來。
       minor-and-patch:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # 執行期是 ultimate-express，而 ultimate-express 2.2.1 自己依賴 @types/express ^4.17.25（2026-10-13
+      # 核對 node_modules）。型別升到 5 會描述一個執行期沒有的 API。等 ultimate-express 改依賴 5 再拿掉。
+      - dependency-name: "@types/express"
+        update-types: ["version-update:semver-major"]
 
-  # Dockerfile 的 base image（node）。跟 npm 同一個節奏。
+  # Dockerfile 的 base image（node）
   - package-ecosystem: "docker"
     directory: "/"
+    target-branch: "development"
     schedule:
       interval: "weekly"
-    # 新版上架滿 7 天才開版本更新 PR（預設 3 天）。2025 年 npm 的供應鏈攻擊多半是發惡意的 patch 版、
-    # 幾天內就被發現下架，等一週可以避開。只影響版本更新，安全性更新不受 cooldown 限制。
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Taipei"
     cooldown:
       default-days: 7
     ignore:
-      # Node major（22 → 24）不自動開 PR：ultimate-express 依賴的 uWebSockets.js 是 native module，
-      # 綁 Node ABI（見 Dockerfile 檔頭），換 major 要先確認它有對應版本的 binary，是一次刻意的升級，
-      # 不是例行更新。22 版內的 minor／patch 照收（安全修補在這裡）。
+      # Node major（22 → 24）不自動開 PR：ultimate-express 依賴的 uWebSockets.js 是 native module，綁 Node
+      # ABI（見 Dockerfile 檔頭），換 major 要先確認它有對應版本的 binary。22 版內的更新照收。
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
+
+  # ci.yml 裡的 action 用 commit SHA 釘住，靠這一段更新 SHA。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "development"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Taipei"
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

@@ -1,0 +1,70 @@
+# CI（2026-10-13）。兩個用途：每個 PR 都有建置＋測試的結果可看，以及 Dependabot 自動合併的前提——
+# cooldown 擋的是惡意版本，擋不了「合法但改壞 API 的版本」，那只有建置＋測試抓得到。
+# 範本是 oingg-mops-ts/.github/workflows/ci.yml。
+#
+# checks：lint（oxlint）→ build（tsc + tsc-alias，tsc 就是型別檢查）→ test（vitest）。
+# 不連資料庫：測試都是 parser 單元測試，Prisma client 建立時不連線。環境變數給假值只是讓 postinstall 的
+# `prisma generate`（prisma.config.ts 讀 env('DIRECT_URL')）和 client 模組載入得過。
+# Node 22、pnpm 11 都跟 Dockerfile 一致（uWebSockets.js 綁 Node ABI）。
+#
+# dependabot-merge：needs: checks，同一次執行裡 checks 通過才會跑；只合 Dependabot 開到 development、
+# 而且不是 semver-major 的 PR，用 --match-head-commit 只合剛驗證過的那個 commit。
+# - minor 也放行：minor＋patch 合成一個群組 PR，fetch-metadata 回報群組裡最大的等級，只放 patch 的話
+#   群組 PR 永遠不會自動合。
+# - development 不接部署（Cloud Build 只接 main），所以自動合併不會觸發上線；main 一律由人合。
+# - 安全要點：用 pull_request（不是 pull_request_target）、作者用 pull_request.user.login 判斷（不是
+#   github.actor）、寫入權限只給這個 job、這個 job 不 checkout 也不執行 PR 的程式碼。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [development]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile # postinstall 會跑 prisma generate
+      - run: pnpm run lint
+      - run: pnpm run build
+      - run: pnpm test
+
+  dependabot-merge:
+    needs: checks
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'development'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge "$PR_URL" --squash --match-head-commit "$HEAD_SHA"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
