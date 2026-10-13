@@ -5,7 +5,7 @@
 # checks：lint（oxlint）→ build（tsc + tsc-alias，tsc 就是型別檢查）→ test（vitest）。
 # 不連資料庫：測試都是 parser 單元測試，Prisma client 建立時不連線。環境變數給假值只是讓 postinstall 的
 # `prisma generate`（prisma.config.ts 讀 env('DIRECT_URL')）和 client 模組載入得過。
-# Node 22、pnpm 11 都跟 Dockerfile 一致（uWebSockets.js 綁 Node ABI）。
+# Node 26、pnpm 11 都跟 Dockerfile 一致（uWebSockets.js 綁 Node ABI）。
 #
 # dependabot-merge：needs: checks，同一次執行裡 checks 通過才會跑；只合 Dependabot 開到 development、
 # 而且不是 semver-major 的 PR，用 --match-head-commit 只合剛驗證過的那個 commit。
@@ -42,7 +42,7 @@ jobs:
           version: 11
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile # postinstall 會跑 prisma generate
       # --deny-warnings：oxlint 預設只有 error 會讓它失敗，像 no-debugger 這類是 warning、exit 0 照樣綠燈

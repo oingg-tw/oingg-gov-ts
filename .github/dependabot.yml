@@ -55,9 +55,10 @@ updates:
       # 核對 node_modules）。型別升到 5 會描述一個執行期沒有的 API。等 ultimate-express 改依賴 5 再拿掉。
       - dependency-name: "@types/express"
         update-types: ["version-update:semver-major"]
-      # @types/node 的 major 跟執行期的 Node 一起鎖在 22（Dockerfile、CI 都是 Node 22）。型別比執行期新，
-      # 程式碼用到 Node 22 沒有的 API 也照樣通過型別檢查，要到正式環境才爆。2026-10-13 第一輪就開了
-      # #14「@types/node 22 → 26」，這條就是為它加的。Node 本身升 major 時兩條一起拿掉。
+      # @types/node 的 major 跟執行期的 Node 一起鎖住（Dockerfile、CI 都是 Node 26）。型別比執行期新，
+      # 程式碼用到執行期沒有的 API 也照樣通過型別檢查，要到正式環境才爆。2026-10-13 第一輪就開了
+      # #14「@types/node 22 → 26」，這條就是為它加的。Node 升 major 時，三處（Dockerfile、CI、@types/node）
+      # 一起手動升，這兩條 ignore 照留。
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
@@ -73,8 +74,8 @@ updates:
     cooldown:
       default-days: 7
     ignore:
-      # Node major（22 → 24）不自動開 PR：ultimate-express 依賴的 uWebSockets.js 是 native module，綁 Node
-      # ABI（見 Dockerfile 檔頭），換 major 要先確認它有對應版本的 binary。22 版內的更新照收。
+      # Node major 不自動開 PR：ultimate-express 依賴的 uWebSockets.js 是 native module，綁 Node
+      # ABI（見 Dockerfile 檔頭），換 major 要先確認它有對應版本的 binary（2026-10-13 升 26 時確認過 ABI 147）。同一個 major 內的更新照收。
       - dependency-name: "node"
         update-types: ["version-update:semver-major"]
 

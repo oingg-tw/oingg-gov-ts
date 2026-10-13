@@ -1,6 +1,7 @@
 # uWebSockets.js（ultimate-express 的依賴）是 native module，綁 Node ABI，build 和 runtime 版本
-# 不能不一致，所以 builder 跟 runner 兩個 stage 都固定用同一個 Node 22 base image。
-FROM node:22-trixie-slim AS builder
+# 不能不一致，所以 builder 跟 runner 兩個 stage 都固定用同一個 Node base image。2026-10-13 從 22 升到 26
+# （使用者決定，跟本機與 mops-ts 對齊）：uWebSockets.js 20.69.0 有 Node 26 的原生檔（ABI 147）。
+FROM node:26-trixie-slim AS builder
 
 WORKDIR /app
 
@@ -34,7 +35,7 @@ RUN pnpm run build
 # 副作用，直接跳過（--ignore-scripts）。
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
-FROM node:22-trixie-slim AS runner
+FROM node:26-trixie-slim AS runner
 
 WORKDIR /app
 
