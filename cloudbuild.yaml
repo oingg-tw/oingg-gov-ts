@@ -6,7 +6,9 @@ substitutions:
 steps:
   # 測試/型別檢查/lint 關卡：這三個沒過，後面的 image build/deploy 都不會執行（Cloud Build steps 依序失敗即中止）。
   - id: test
-    name: node:22-trixie-slim
+    # 跟 Dockerfile、CI 同一個 Node 大版本（2026-10-13 升 26 時漏改了這裡，10/14 補上）：正式環境跑 26，
+    # 部署前唯一的關卡卻在 22 上測，用到 26 才有的東西就測不出來。
+    name: node:26-trixie-slim
     entrypoint: bash
     args:
       - -c
@@ -21,7 +23,7 @@ steps:
         npx prisma generate
         pnpm test
         npx tsc --noEmit
-        pnpm lint
+        pnpm lint --deny-warnings
 
   - id: build
     name: gcr.io/cloud-builders/docker
