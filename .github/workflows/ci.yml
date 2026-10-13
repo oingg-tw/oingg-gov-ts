@@ -2,9 +2,11 @@
 # cooldown 擋的是惡意版本，擋不了「合法但改壞 API 的版本」，那只有建置＋測試抓得到。
 # 範本是 oingg-mops-ts/.github/workflows/ci.yml。
 #
-# checks：lint（oxlint）→ build（tsc + tsc-alias，tsc 就是型別檢查）→ test（vitest）。
-# 不連資料庫：測試都是 parser 單元測試，Prisma client 建立時不連線。環境變數給假值只是讓 postinstall 的
-# `prisma generate`（prisma.config.ts 讀 env('DIRECT_URL')）和 client 模組載入得過。
+# checks：lint（oxlint）→ build（tsc + tsc-alias，tsc 就是型別檢查）→ test（vitest）→ 啟動煙霧測試。
+# 單元測試是 parser 測試，不碰資料庫。但煙霧測試要真的連得上資料庫：connectDb() 啟動時跑 SELECT 1，
+# 連不上就拒絕啟動（2026-10-13 起；之前 Prisma 7 搭 driver adapter 的 $connect() 不會真的連線，資料庫
+# 掛了也照樣印「已連線」），所以 services 起一個空的 Postgres 18（跟正式環境 Neon 同一個大版本）。
+# 不跑 migration、不需要任何表：煙霧測試只驗「原生檔載得起來＋連得上資料庫＋listen 完成」。
 # Node 26、pnpm 11 都跟 Dockerfile 一致（uWebSockets.js 綁 Node ABI）。
 #
 # dependabot-merge：needs: checks，同一次執行裡 checks 通過才會跑；只合 Dependabot 開到 development、
@@ -32,6 +34,20 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
       DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
@@ -51,6 +67,19 @@ jobs:
       - run: pnpm run lint --deny-warnings
       - run: pnpm run build
       - run: pnpm test
+      # 單元測試不會啟動伺服器：升 Node 或升 uWebSockets.js 時原生檔載不起來，前面每一步照樣綠燈，要到部署才炸
+      # （twse-ts 的 uWS 20.48.0 在 Node 26 上就是這樣）。GET / 回傳的啟動時間是在 listen 完成之後才設定的，
+      # 所以它回 200 而且帶「數字ms」才算真的起來；順便把啟動時間印進 log，升級時看得出有沒有變慢。
+      # 2026-10-13 本機預演：沒有資料庫、密碼錯、路徑不存在三種情況這一步都會失敗。
+      - name: 啟動煙霧測試
+        shell: bash
+        run: |
+          PORT=18080 node dist/index.js > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            body=$(curl -fsS http://localhost:18080/) && echo "$body" | grep -qE '[0-9]+(\.[0-9]+)?ms' && { echo "伺服器起得來：$body"; exit 0; }
+            sleep 1
+          done
+          echo "::error::伺服器 30 秒內沒有回應（或 GET / 沒有回報啟動時間）"; cat server.log; exit 1
 
   dependabot-merge:
     needs: checks
