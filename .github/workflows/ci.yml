@@ -45,7 +45,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile # postinstall 會跑 prisma generate
-      - run: pnpm run lint
+      # --deny-warnings：oxlint 預設只有 error 會讓它失敗，像 no-debugger 這類是 warning、exit 0 照樣綠燈
+      # （2026-10-13 乾淨 worktree 預演時故意放一個 debugger 實測過）。目前 0 個 warning，所以把 warning
+      # 也當失敗，lint 才真的有把關作用。
+      - run: pnpm run lint --deny-warnings
       - run: pnpm run build
       - run: pnpm test
 
