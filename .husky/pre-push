@@ -1,0 +1,7 @@
+# push 前在本機先跑一次，跟 cloudbuild.yaml 的 test 步驟同一組檢查（測試、型別、lint），回饋最快。
+# 這不是關卡：GitHub 網頁上的合併、Dependabot 自動合併、git push --no-verify 都不經過它。
+# 合併的關卡是 GitHub CI，部署到正式環境的關卡是 Cloud Build 的 test 步驟。
+set -e
+pnpm test
+npx tsc --noEmit
+pnpm lint --deny-warnings

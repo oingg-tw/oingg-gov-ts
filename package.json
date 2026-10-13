@@ -12,7 +12,8 @@
     "build": "rimraf dist && tsc && tsc-alias",
     "postinstall": "prisma generate",
     "scheduler:check": "tsx scripts/reconcileScheduler.ts",
-    "scheduler:apply": "tsx scripts/reconcileScheduler.ts --apply"
+    "scheduler:apply": "tsx scripts/reconcileScheduler.ts --apply",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -38,6 +39,7 @@
     "@types/node": "^26.6.5",
     "@types/swagger-ui-express": "^4.1.8",
     "@vitest/coverage-v8": "4.1.11",
+    "husky": "^9.1.7",
     "oxlint": "^1.87.0",
     "prisma": "^7.9.1",
     "rimraf": "^5.0.7",
