@@ -4,6 +4,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # 新版上架滿 7 天才開版本更新 PR（預設 3 天）。2025 年 npm 的供應鏈攻擊多半是發惡意的 patch 版、
+    # 幾天內就被發現下架，等一週可以避開。只影響版本更新，安全性更新不受 cooldown 限制。
+    cooldown:
+      default-days: 7
     groups:
       # zod 跟 zod-to-openapi 版本互相牽制（2026-09-04 才把 zod-to-openapi 從 7.3.4 升到 9.1.0，
       # 連帶把 zod 從 3 升到 4——9.x 的 peer 要求 zod ^4.0.0）。分到同一組讓 Dependabot 只開「兩個
@@ -40,6 +44,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # 新版上架滿 7 天才開版本更新 PR（預設 3 天）。2025 年 npm 的供應鏈攻擊多半是發惡意的 patch 版、
+    # 幾天內就被發現下架，等一週可以避開。只影響版本更新，安全性更新不受 cooldown 限制。
+    cooldown:
+      default-days: 7
     ignore:
       # Node major（22 → 24）不自動開 PR：ultimate-express 依賴的 uWebSockets.js 是 native module，
       # 綁 Node ABI（見 Dockerfile 檔頭），換 major 要先確認它有對應版本的 binary，是一次刻意的升級，
