@@ -20,18 +20,31 @@ name: CI
 
 on:
   pull_request:
+    # edited：Dependabot 把舊 PR 的目標從 main 改成 development 時，GitHub 只送 edited 事件。預設的
+    # opened／synchronize／reopened 聽不到它，CI 不會用新的目標分支重跑，合併 job 就要等人留言
+    # @dependabot rebase（twse-ts、sitca-ts 2026-10-13 實測）。下面 checks 的 if 只讓「改了 base」的
+    # edited 通過，改標題、改說明不會多跑一次 CI。
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [development]
 
 permissions:
   contents: read
 
+# 同一個 PR／分支只留最新一次執行。**只改標題或說明的 edited 改用自己的 run_id 當 group**：它的 checks
+# 會被下面的 if 跳過，但 run 照樣建立、照樣進 group——共用 group 的話，會把同一個 PR 正在跑的 CI 取消掉
+# （Dependabot rebase 時常順手改 PR 說明，那一輪就合不了；twse-ts 2026-10-13 指出）。改了 base 的 edited
+# 和其他事件照舊共用 group：目標分支換了，針對舊目標分支的那次 CI 本來就不必跑完。push 事件的
+# github.event.action 是空字串，運算式結果是 ''，不受影響。寫法跟 mops-ts、twse-ts 一致。
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ github.event.action == 'edited' && github.event.changes.base == null && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
   checks:
+    # 只有「改了 base」的 edited 才跑；push 事件的 action 不是 edited，照常跑。被跳過時 postgres 服務容器也不會
+    # 啟動，dependabot-merge（needs: checks）跟著跳過。
+    if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
