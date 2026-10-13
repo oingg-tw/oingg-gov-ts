@@ -55,6 +55,11 @@ updates:
       # 核對 node_modules）。型別升到 5 會描述一個執行期沒有的 API。等 ultimate-express 改依賴 5 再拿掉。
       - dependency-name: "@types/express"
         update-types: ["version-update:semver-major"]
+      # @types/node 的 major 跟執行期的 Node 一起鎖在 22（Dockerfile、CI 都是 Node 22）。型別比執行期新，
+      # 程式碼用到 Node 22 沒有的 API 也照樣通過型別檢查，要到正式環境才爆。2026-10-13 第一輪就開了
+      # #14「@types/node 22 → 26」，這條就是為它加的。Node 本身升 major 時兩條一起拿掉。
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   # Dockerfile 的 base image（node）
   - package-ecosystem: "docker"
