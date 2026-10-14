@@ -6,3 +6,18 @@ allowBuilds:
   '@scarf/scarf': false
   esbuild: true
   prisma: true
+
+# 間接依賴的安全修補（2026-10-13，照使用者核准的處理程序第 3 步：上層沒有新版可升，就用 overrides 釘修補版）。
+# GitHub 的 Dependabot 警示只比對預設分支 main；這份清單是 `pnpm audit` 對 development 實際 lockfile 掃出來的
+# （14 則：critical 1、high 8、moderate 5）。上層能升的只有 major（rimraf 6、vitest 5、prisma 8 rc），不在範圍內。
+# **每一條的刪除條件：上層套件自己升到修補版之後就拿掉**（用 `pnpm why <套件>` 看是誰帶進來的）。
+# 刻意不處理：
+# - deepmerge-ts：修補版是 8.0.0（跨 major），綁在 Prisma 內部，只用來合併我們自己的 prisma.config。
+# - braces <=3.0.3：沒有修補版，只在開發工具 tsc-alias 裡（chokidar、fast-glob），不進正式環境。
+overrides:
+  proxy-addr: ^2.0.8 # critical：可偽造來源 IP；來自 ultimate-express、swagger-ui-express。上層範圍 ^2.0.7，修補版在範圍內
+  qs: ^6.16.0 # 來自 ultimate-express、swagger-ui-express > express；上層範圍 ^6.15.2，在範圍內
+  fast-uri: ^3.1.8 # Prisma 內部（@prisma/dev > @prisma/streams-local > ajv）
+  source-map-js: ^1.2.2 # Prisma（c12 > magicast）與 vitest coverage 內部
+  mysql2: ^3.23.1 # Prisma CLI 內建的 MySQL 驅動（prisma 鎖死 3.15.3），我們只用 PostgreSQL，執行期不會載入
+  brace-expansion: ^2.1.7 # 開發工具 rimraf > glob > minimatch；樹裡只有 2.x 一個版本
