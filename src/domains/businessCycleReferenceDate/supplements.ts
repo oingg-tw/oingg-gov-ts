@@ -8,6 +8,12 @@ import type { BusinessCycleReferenceDatePoint } from '@/domains/businessCycleRef
 // - 公告要核對國發會原始頁面，不是媒體轉述。
 // 資料集哪天跟上了，那些欄位就不再有空可補，supplementedFields 自然變空——這份清單不需要手動拿掉，
 // 但可以在確認資料集已更新後刪掉對應的條目保持乾淨。
+//
+// **更正（使用者 2026-10-21 另外核准）**：資料集**有值但值是錯的**、而官方公告明確推翻它時，才用公告蓋掉。
+// 這跟補值不同，所以每一條更正都寫明「資料集現在的錯誤值」：資料集的值等於它才改；資料集已經修好
+// （等於公告值）就什麼都不做；變成第三個值就不動、記 log 讓人來看——不會拿一條過時的更正蓋掉新資料。
+// 更正過的欄位一樣記在 supplementedFields / supplementSource，下游的判讀方式不變：有列在
+// supplementedFields 裡的欄位，值來自公告，不是資料集原值。
 
 type SupplementableField = 'troughStart' | 'peak' | 'troughEnd' | 'expansionMonths' | 'contractionMonths' | 'totalMonths';
 
@@ -30,6 +36,25 @@ export const SUPPLEMENTS: Supplement[] = [
   { cycleNo: 16, values: { troughStart: month(2023, 4) }, source: NDC_2025_02_05 },
 ];
 
+interface Correction {
+  cycleNo: number;
+  field: SupplementableField;
+  datasetValue: Date | number; // 資料集現在的錯誤值，只有等於它才更正
+  value: Date | number; // 公告的正確值
+  source: string;
+}
+
+const NDC_2016_01_18 =
+  '國發會新聞稿 2016-01-18「認定臺灣第14次景氣循環高峰為2014年10月」https://www.ndc.gov.tw/cp.aspx?n=80D78933E4B6C963&s=FD598757E4A1CCB8';
+
+export const CORRECTIONS: Correction[] = [
+  // 資料集寫 201401，國發會公告是 2014 年 10 月（看起來是 201410 末兩碼打反）。同一列自己的月數也印證：
+  // 谷底 2012-01 加擴張期 33 個月是 2014-10，再加收縮期 16 個月正好是谷底 2016-02；照 2014-01 算則是
+  // 擴張 24、收縮 25，兩個都對不上。2018 年的第 14 次谷底認定新聞稿也寫「高峰…認定在2014年10月」。
+  // analysis-ts／web-nuxt 2026-10-21 發現，gov-ts 核對國發會兩份原始新聞稿後更正。
+  { cycleNo: 14, field: 'peak', datasetValue: month(2014, 1), value: month(2014, 10), source: NDC_2016_01_18 },
+];
+
 export interface SupplementedPoint extends BusinessCycleReferenceDatePoint {
   supplementedFields: string[];
   supplementSource: string | null;
@@ -41,11 +66,26 @@ const sameValue = (a: unknown, b: unknown) =>
 export const applySupplements = (
   points: BusinessCycleReferenceDatePoint[],
   supplements: Supplement[] = SUPPLEMENTS,
-  warn: (message: string) => void = console.warn
+  warn: (message: string) => void = console.warn,
+  corrections: Correction[] = CORRECTIONS
 ): SupplementedPoint[] => {
   const byCycle = new Map<number, SupplementedPoint>(
     points.map((p) => [p.cycleNo, { ...p, supplementedFields: [], supplementSource: null }])
   );
+
+  for (const c of corrections) {
+    const row = byCycle.get(c.cycleNo);
+    if (!row) continue;
+    const current = row[c.field];
+    if (sameValue(current, c.value)) continue; // 資料集已經修好
+    if (!sameValue(current, c.datasetValue)) {
+      warn(`景氣循環更正：第 ${c.cycleNo} 循環的 ${c.field} 不是預期的錯誤值（資料集 ${String(current)}，預期 ${String(c.datasetValue)}），不更正，請人工確認。`);
+      continue;
+    }
+    (row as unknown as Record<string, unknown>)[c.field] = c.value;
+    row.supplementedFields.push(c.field);
+    row.supplementSource = c.source;
+  }
 
   for (const s of supplements) {
     let row = byCycle.get(s.cycleNo);

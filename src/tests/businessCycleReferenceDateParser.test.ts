@@ -71,3 +71,28 @@ describe('applySupplements', () => {
     expect(points[0]).toMatchObject({ cycleNo: 16, peak: null, troughEnd: null, supplementedFields: ['troughStart'] });
   });
 });
+
+describe('applySupplements corrections', () => {
+  const row14 = { cycleNo: 14, troughStart: new Date(Date.UTC(2012, 0, 1)), troughEnd: new Date(Date.UTC(2016, 1, 1)), expansionMonths: 33, contractionMonths: 16, totalMonths: 49 };
+  const fix = [{ cycleNo: 14, field: 'peak' as const, datasetValue: new Date(Date.UTC(2014, 0, 1)), value: new Date(Date.UTC(2014, 9, 1)), source: 'NDC 2016-01-18' }];
+
+  it('corrects a known wrong dataset value and records it', () => {
+    const [p] = applySupplements([{ ...row14, peak: new Date(Date.UTC(2014, 0, 1)) }], [], () => {}, fix);
+    expect(p!.peak?.toISOString().slice(0, 10)).toBe('2014-10-01');
+    expect(p!.supplementedFields).toEqual(['peak']);
+    expect(p!.supplementSource).toBe('NDC 2016-01-18');
+  });
+
+  it('does nothing once the dataset has been fixed', () => {
+    const [p] = applySupplements([{ ...row14, peak: new Date(Date.UTC(2014, 9, 1)) }], [], () => {}, fix);
+    expect(p!.supplementedFields).toEqual([]);
+  });
+
+  it('leaves an unexpected third value alone and warns', () => {
+    const warnings: string[] = [];
+    const [p] = applySupplements([{ ...row14, peak: new Date(Date.UTC(2014, 5, 1)) }], [], (m) => warnings.push(m), fix);
+    expect(p!.peak?.toISOString().slice(0, 10)).toBe('2014-06-01');
+    expect(p!.supplementedFields).toEqual([]);
+    expect(warnings.join()).toMatch(/不是預期的錯誤值/);
+  });
+});
