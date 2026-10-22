@@ -3,7 +3,7 @@ import type { Request, Response } from 'ultimate-express';
 import { ingestRateLimit } from '@/shared/rateLimiter';
 
 // ingestRateLimit 用模組層級的 Map/Set 記狀態，測試之間不會自動重置——每個 test 用不同的
-// originalUrl 當 key，彼此獨立，不用互相清理。
+// path 當 key，彼此獨立，不用互相清理。
 
 const buildReq = (path: string): Request => ({ baseUrl: '', path }) as unknown as Request;
 

@@ -8,7 +8,7 @@ import { Request, Response, NextFunction } from 'ultimate-express';
  * 那才是真正會導致這些外部資料源把我們的伺服器 IP 鎖起來、或把 GCIS 節流額度用光的路徑。
  * company-industry-classification 那個端點還會下載 322MB 的檔案，重複觸發的成本更高。
  *
- * 用 req.originalUrl 當 key，讓每個 dataset 各自獨立限流，不會因為一個 dataset 在跑就卡住其他的。
+ * 用請求路徑當 key，讓每個 dataset 各自獨立限流，不會因為一個 dataset 在跑就卡住其他的。
  * 用記憶體實作就夠：這個服務單一 instance 執行、沒有跨 instance 共享狀態的需求，也不需要為了這個
  * 引入 Redis 之類的外部依賴。
  *
