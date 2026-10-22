@@ -107,6 +107,25 @@ describe('ingestRateLimit', () => {
     expect(second.headers['Retry-After']).toBeDefined();
   });
 
+  it('does not start the cooldown after a failed request, and logs the failure body', () => {
+    const url = '/api/ingest/test-failed-no-cooldown';
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((m: string) => void errors.push(m));
+    const first = buildRes();
+    ingestRateLimit(buildReq(url), first, () => {});
+    first.status(502).json({ error: 'FRED CSV 下載失敗：HTTP 503' });
+    first.triggerFinish();
+    spy.mockRestore();
+
+    let secondNextCalled = false;
+    ingestRateLimit(buildReq(url), buildRes(), () => {
+      secondNextCalled = true;
+    });
+
+    expect(secondNextCalled).toBe(true);
+    expect(errors.join()).toMatch(/HTTP 502.*FRED CSV 下載失敗/);
+  });
+
   it('allows a request again once the 60s cooldown has elapsed', () => {
     const url = '/api/ingest/test-cooldown-elapsed';
     const first = buildRes();
