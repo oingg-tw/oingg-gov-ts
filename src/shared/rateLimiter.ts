@@ -25,15 +25,17 @@ import { Request, Response, NextFunction } from 'ultimate-express';
  *   的 stderr 實測沒有 severity）。包的是 res.send：res.json 內部也走 send，errorHandler 直接用
  *   send，兩條都抓得到。body 截斷到 2000 字。原本 502 的錯誤只在回應 body、Cloud Run 不記 body，
  *   失敗原因無處可查。
- * - 鎖在 handler 呼叫 send 時釋放（也聽 finish／close 當保險）。實測 ultimate-express 在客戶端中途
- *   斷線（例如 Scheduler 的 attemptDeadline 到了）後，handler 寫完回應也**不會**發 finish 或 close，
- *   只聽 finish 的話鎖會卡死到重啟。再加一個等於 Cloud Run 請求逾時的上限，防 handler 永遠不回應。
+ * - 鎖在 handler 呼叫 send 時釋放（finish 當保險）。實測 ultimate-express 在客戶端中途斷線（例如
+ *   Scheduler 的 attemptDeadline 到了）後，handler 寫完回應也**不會**發 finish 或 close，只聽 finish
+ *   的話鎖會卡死到重啟。刻意不聽 close：那要假設框架不會在斷線當下、handler 還在跑時就發 close，
+ *   否則會提早放鎖讓同一個 dataset 重複執行（analysis-ts review）。再加一個等於 Cloud Run 請求
+ *   逾時的上限，防 handler 永遠不回應。
  *   客戶端斷線**不會**提早釋放：伺服器那次還在跑，這時回 429 擋掉重複執行是對的。
  */
 const IN_FLIGHT_PATHS = new Set<string>();
 const BLOCKED_UNTIL = new Map<string, number>();
 const SUCCESS_COOLDOWN_MS = 60_000;
-const FAILURE_COOLDOWN_MS = 10_000; // 必須 < Scheduler minBackoff（30s），見上
+export const FAILURE_COOLDOWN_MS = 10_000; // 必須 < Scheduler minBackoff（30s），見上；有測試比對
 const MAX_IN_FLIGHT_MS = 3_600_000; // = Cloud Run --timeout=3600（cloudbuild.yaml）
 
 export const ingestRateLimit = (req: Request, res: Response, next: NextFunction) => {
@@ -76,7 +78,6 @@ export const ingestRateLimit = (req: Request, res: Response, next: NextFunction)
   const timer = setTimeout(release, MAX_IN_FLIGHT_MS);
   timer.unref();
   res.on('finish', release);
-  res.on('close', release);
 
   next();
 };

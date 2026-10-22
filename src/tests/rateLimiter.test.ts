@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Request, Response } from 'ultimate-express';
-import { ingestRateLimit } from '@/shared/rateLimiter';
+import { ingestRateLimit, FAILURE_COOLDOWN_MS } from '@/shared/rateLimiter';
+import { readFileSync } from 'fs';
 
 // ingestRateLimit 用模組層級的 Map/Set 記狀態，測試之間不會自動重置——每個 test 用不同的
 // path 當 key，彼此獨立，不用互相清理。
@@ -163,5 +164,14 @@ describe('ingestRateLimit', () => {
     });
 
     expect(secondNextCalled).toBe(true);
+  });
+
+  it('keeps the failure cooldown shorter than the scheduler minBackoff, so the first retry gets through', () => {
+    // scripts/ 不在 tsc 的 rootDir 裡，不能 import，直接讀檔取 defaults.minBackoff。
+    const config = readFileSync('scripts/scheduler.config.ts', 'utf-8');
+    const match = /minBackoff: '(\d+)s'/.exec(config);
+    expect(match).not.toBeNull();
+    const minBackoffMs = Number(match![1]) * 1000;
+    expect(FAILURE_COOLDOWN_MS).toBeLessThan(minBackoffMs);
   });
 });
