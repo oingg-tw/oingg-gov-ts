@@ -110,8 +110,8 @@ doesn't collide with the other services when running side by side. Swagger
 docs are served at `/api-docs`.
 
 All `/api/ingest/*` routes require a `TASK_SECRET` (via the `X-Task-Secret`
-header or `task_secret` query param) and are rate-limited to one trigger per
-dataset per 60s — see `src/shared/middleware.ts` / `src/shared/rateLimiter.ts`.
+header only; a query param would land in Cloud Run's request log) and are
+rate-limited to one trigger per dataset per 60s after a success (10s after a failure) — see `src/shared/middleware.ts` / `src/shared/rateLimiter.ts`.
 Every route in this service is an ingest route, and every one of them is
 triggered by Cloud Scheduler; there is no unprotected surface and no endpoint
 that takes a request body. Downstream reads go through the `export` schema

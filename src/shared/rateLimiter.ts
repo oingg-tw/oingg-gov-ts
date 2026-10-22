@@ -19,8 +19,8 @@ import { Request, Response, NextFunction } from 'ultimate-express';
  * - 冷卻分兩種：成功後 60 秒；失敗後只有 FAILURE_COOLDOWN_MS。失敗的冷卻**必須短於
  *   scripts/scheduler.config.ts 的 minBackoff（30s）**，重試才過得去；但不能是 0，否則快速失敗的
  *   端點會被異常狂打、每次都真的去打上游（這層存在的理由，見上）。
- * - key 用 baseUrl + path，不含 query string：帶不同 query 不能繞過限流，而且 requireTaskSecret
- *   也接受 ?task_secret=，用 originalUrl 會把密鑰寫進下面的 log。
+ * - key 用 baseUrl + path，不含 query string：帶不同 query 不能繞過限流，網址裡有什麼也不會寫進
+ *   下面的 log（requireTaskSecret 已改成只收 header，這裡仍不記 query 當作保險）。
  * - 失敗回應（>= 400）記一行結構化 log（Cloud Run 會把單行 JSON 的 severity 認成 ERROR；純文字
  *   的 stderr 實測沒有 severity）。包的是 res.send：res.json 內部也走 send，errorHandler 直接用
  *   send，兩條都抓得到。body 截斷到 2000 字。原本 502 的錯誤只在回應 body、Cloud Run 不記 body，

@@ -15,7 +15,10 @@ function safeSecretEquals(a: string, b: string): boolean {
 
 /**
  * Middleware to require a task secret for specific endpoints.
- * It checks for a secret in the 'x-task-secret' header or 'task_secret' query parameter.
+ * It checks for a secret in the 'x-task-secret' header only.
+ *
+ * 2026-10-22 起不再收 ?task_secret= 網址參數：Cloud Run 的 request log 會記完整網址，用網址帶密鑰
+ * 不管程式怎麼寫都會外流（mops/twse review 指出）。近 30 天 PRD request log 查過 0 筆這樣用。
  * The expected secret should be set in the environment variable `TASK_SECRET`.
  *
  * If the secret is missing or invalid, it sends a 401 Unauthorized response.
@@ -32,7 +35,7 @@ export const requireTaskSecret = (req: Request, res: Response, next: NextFunctio
     return res.status(500).json({ message: 'Server configuration error: Task secret not defined.' });
   }
 
-  const providedSecretRaw = req.headers['x-task-secret'] || req.query.task_secret; // 檢查請求頭或查詢參數
+  const providedSecretRaw = req.headers['x-task-secret'];
   const providedSecret = Array.isArray(providedSecretRaw) ? providedSecretRaw[0] : providedSecretRaw;
 
   // 用 timingSafeEqual 而不是 !==，避免時序攻擊可以從回應時間差猜出密鑰。
