@@ -51,6 +51,10 @@ steps:
       - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:$SHORT_SHA
       - --region=${_REGION}
       - --min-instances=0
+      # 最多一台：src/shared/rateLimiter.ts 的 in-flight 鎖和冷卻都在單台記憶體裡，多台時兩次觸發
+      # 落在不同台就擋不住，同一個 dataset 會被同時跑兩次（analysis-ts review 2026-10-22；原本
+      # maxScale 是 20，近 30 天一個 revision 用過 18 台）。流量只有錯開時間的排程 ingest，一台夠。
+      - --max-instances=1
       - --no-allow-unauthenticated
       # 那幾個跑很久的 ingest 端點（refresh-tracked 實測約 17 分鐘、company-industry-classification
       # 要下載 322MB）遠超 Cloud Run 預設的 300 秒逾時，設到上限 3600 秒。Request-based billing

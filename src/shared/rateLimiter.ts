@@ -9,7 +9,7 @@ import { Request, Response, NextFunction } from 'ultimate-express';
  * company-industry-classification 那個端點還會下載 322MB 的檔案，重複觸發的成本更高。
  *
  * 用請求路徑當 key，讓每個 dataset 各自獨立限流，不會因為一個 dataset 在跑就卡住其他的。
- * 用記憶體實作就夠：這個服務單一 instance 執行、沒有跨 instance 共享狀態的需求，也不需要為了這個
+ * 用記憶體實作就夠：這個服務單一 instance 執行（cloudbuild.yaml 的 --max-instances=1 保證）、沒有跨 instance 共享狀態的需求，也不需要為了這個
  * 引入 Redis 之類的外部依賴。
  *
  * （跟 oingg-tpex-ts 的 ingestRateLimit 是同一套實作。）
