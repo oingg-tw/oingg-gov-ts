@@ -88,7 +88,7 @@ describe('requireTaskSecret', () => {
     expect(nextCalled).toBe(true);
   });
 
-  it('accepts a matching secret via the task_secret query parameter', () => {
+  it('rejects a secret passed as the task_secret query parameter (header only)', () => {
     process.env.TASK_SECRET = 'correct-secret';
     const req = buildReq({ query: 'correct-secret' });
     const res = buildRes();
@@ -98,7 +98,8 @@ describe('requireTaskSecret', () => {
       nextCalled = true;
     });
 
-    expect(nextCalled).toBe(true);
+    expect(nextCalled).toBe(false);
+    expect(res.statusCode).toBe(401);
   });
 
   it('strips surrounding quotes from TASK_SECRET before comparing (Docker/Cloud Run env-file quoting)', () => {
