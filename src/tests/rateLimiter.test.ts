@@ -5,7 +5,7 @@ import { ingestRateLimit } from '@/shared/rateLimiter';
 // ingestRateLimit 用模組層級的 Map/Set 記狀態，測試之間不會自動重置——每個 test 用不同的
 // originalUrl 當 key，彼此獨立，不用互相清理。
 
-const buildReq = (originalUrl: string): Request => ({ originalUrl }) as unknown as Request;
+const buildReq = (path: string): Request => ({ baseUrl: '', path }) as unknown as Request;
 
 const buildRes = () => {
   let finishCallback: (() => void) | undefined;
@@ -18,6 +18,9 @@ const buildRes = () => {
       return res;
     },
     json(payload: unknown) {
+      return res.send(JSON.stringify(payload));
+    },
+    send(payload: unknown) {
       res.body = payload;
       return res;
     },
@@ -107,8 +110,8 @@ describe('ingestRateLimit', () => {
     expect(second.headers['Retry-After']).toBeDefined();
   });
 
-  it('does not start the cooldown after a failed request, and logs the failure body', () => {
-    const url = '/api/ingest/test-failed-no-cooldown';
+  it('uses a short cooldown after a failure, so the scheduler retry 30s later gets through', () => {
+    const url = '/api/ingest/test-failed-short-cooldown';
     const errors: string[] = [];
     const spy = vi.spyOn(console, 'error').mockImplementation((m: string) => void errors.push(m));
     const first = buildRes();
@@ -117,13 +120,32 @@ describe('ingestRateLimit', () => {
     first.triggerFinish();
     spy.mockRestore();
 
-    let secondNextCalled = false;
-    ingestRateLimit(buildReq(url), buildRes(), () => {
-      secondNextCalled = true;
-    });
+    const tooSoon = buildRes();
+    ingestRateLimit(buildReq(url), tooSoon, () => {});
+    expect(tooSoon.statusCode).toBe(429); // 異常狂打仍被擋
 
-    expect(secondNextCalled).toBe(true);
-    expect(errors.join()).toMatch(/HTTP 502.*FRED CSV 下載失敗/);
+    vi.advanceTimersByTime(30_000); // Scheduler minBackoff
+    let retryNextCalled = false;
+    ingestRateLimit(buildReq(url), buildRes(), () => {
+      retryNextCalled = true;
+    });
+    expect(retryNextCalled).toBe(true);
+
+    const log = JSON.parse(errors[0]!) as { severity: string; status: number; body: string };
+    expect(log.severity).toBe('ERROR');
+    expect(log.status).toBe(502);
+    expect(log.body).toMatch(/FRED CSV 下載失敗/);
+  });
+
+  it('releases a stuck in-flight lock after the Cloud Run request timeout', () => {
+    const url = '/api/ingest/test-stuck';
+    ingestRateLimit(buildReq(url), buildRes(), () => {}); // 永遠不 finish
+    vi.advanceTimersByTime(3_600_000 + 60_001);
+    let nextCalled = false;
+    ingestRateLimit(buildReq(url), buildRes(), () => {
+      nextCalled = true;
+    });
+    expect(nextCalled).toBe(true);
   });
 
   it('allows a request again once the 60s cooldown has elapsed', () => {

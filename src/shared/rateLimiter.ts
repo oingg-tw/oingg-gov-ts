@@ -14,47 +14,69 @@ import { Request, Response, NextFunction } from 'ultimate-express';
  *
  * （跟 oingg-tpex-ts 的 ingestRateLimit 是同一套實作。）
  *
- * 冷卻只在**成功**之後起算（2026-10-22 修正）：原本失敗也起算，而 Cloud Scheduler 的第一次重試只隔
- * 30 秒，結果上游暫時故障時第一次重試必定撞 429 白白浪費掉（us-policy-rate 10-21 那次就是這樣）。
- * 失敗後的重試本來就由 Scheduler 的退避控制頻率，這裡不必再擋。
- *
- * 順便把失敗回應（>= 400）的內容寫進 log：各 route 的 502 只把錯誤放在回應裡，Cloud Run 的 request
- * log 又不記 body，失敗原因原本無處可查。這個 middleware 本來就掛在每個 ingest 請求上，在這裡記一次
- * 就涵蓋全部 route。
+ * 2026-10-22 修正（us-policy-rate 10-21：FRED 暫時故障 502，Scheduler 30 秒後的第一次重試撞上
+ * 自己的 60 秒冷卻變 429，白白浪費一次重試）；sitca/twse/tpex/business 互相 review 後的版本：
+ * - 冷卻分兩種：成功後 60 秒；失敗後只有 FAILURE_COOLDOWN_MS。失敗的冷卻**必須短於
+ *   scripts/scheduler.config.ts 的 minBackoff（30s）**，重試才過得去；但不能是 0，否則快速失敗的
+ *   端點會被異常狂打、每次都真的去打上游（這層存在的理由，見上）。
+ * - key 用 baseUrl + path，不含 query string：帶不同 query 不能繞過限流，而且 requireTaskSecret
+ *   也接受 ?task_secret=，用 originalUrl 會把密鑰寫進下面的 log。
+ * - 失敗回應（>= 400）記一行結構化 log（Cloud Run 會把單行 JSON 的 severity 認成 ERROR；純文字
+ *   的 stderr 實測沒有 severity）。包的是 res.send：res.json 內部也走 send，errorHandler 直接用
+ *   send，兩條都抓得到。body 截斷到 2000 字。原本 502 的錯誤只在回應 body、Cloud Run 不記 body，
+ *   失敗原因無處可查。
+ * - 鎖在 handler 呼叫 send 時釋放（也聽 finish／close 當保險）。實測 ultimate-express 在客戶端中途
+ *   斷線（例如 Scheduler 的 attemptDeadline 到了）後，handler 寫完回應也**不會**發 finish 或 close，
+ *   只聽 finish 的話鎖會卡死到重啟。再加一個等於 Cloud Run 請求逾時的上限，防 handler 永遠不回應。
+ *   客戶端斷線**不會**提早釋放：伺服器那次還在跑，這時回 429 擋掉重複執行是對的。
  */
 const IN_FLIGHT_PATHS = new Set<string>();
-const LAST_COMPLETED_AT = new Map<string, number>();
-const COOLDOWN_MS = 60_000; // 同一個 dataset 兩次成功觸發之間至少間隔 60 秒
+const BLOCKED_UNTIL = new Map<string, number>();
+const SUCCESS_COOLDOWN_MS = 60_000;
+const FAILURE_COOLDOWN_MS = 10_000; // 必須 < Scheduler minBackoff（30s），見上
+const MAX_IN_FLIGHT_MS = 3_600_000; // = Cloud Run --timeout=3600（cloudbuild.yaml）
 
 export const ingestRateLimit = (req: Request, res: Response, next: NextFunction) => {
-  const key = req.originalUrl;
+  const key = req.baseUrl + req.path;
 
   if (IN_FLIGHT_PATHS.has(key)) {
     return res.status(429).json({ message: 'This dataset ingestion is already in progress. Please wait for it to finish.' });
   }
 
-  const lastCompletedAt = LAST_COMPLETED_AT.get(key);
-  if (lastCompletedAt !== undefined) {
-    const elapsedMs = Date.now() - lastCompletedAt;
-    if (elapsedMs < COOLDOWN_MS) {
-      const waitSeconds = Math.ceil((COOLDOWN_MS - elapsedMs) / 1000);
-      res.setHeader('Retry-After', String(waitSeconds));
-      return res.status(429).json({ message: `Too many requests. Please wait ${waitSeconds}s before triggering this dataset again.` });
-    }
+  const blockedUntil = BLOCKED_UNTIL.get(key);
+  if (blockedUntil !== undefined && Date.now() < blockedUntil) {
+    const waitSeconds = Math.ceil((blockedUntil - Date.now()) / 1000);
+    res.setHeader('Retry-After', String(waitSeconds));
+    return res.status(429).json({ message: `Too many requests. Please wait ${waitSeconds}s before triggering this dataset again.` });
   }
 
   IN_FLIGHT_PATHS.add(key);
   let body: unknown;
-  const json = res.json.bind(res);
-  res.json = (payload: unknown) => {
+  const send = res.send.bind(res);
+  res.send = (payload: unknown) => {
     body = payload;
-    return json(payload);
+    const result = send(payload);
+    release(); // handler 寫回應 = 這次 ingest 結束；客戶端已斷線時框架不會再發 finish/close
+    return result;
   };
-  res.on('finish', () => {
+
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearTimeout(timer);
     IN_FLIGHT_PATHS.delete(key);
-    if (res.statusCode < 400) LAST_COMPLETED_AT.set(key, Date.now());
-    else console.error(`[ingest] ${key} failed with HTTP ${res.statusCode}: ${JSON.stringify(body)}`);
-  });
+    const failed = res.statusCode >= 400;
+    BLOCKED_UNTIL.set(key, Date.now() + (failed ? FAILURE_COOLDOWN_MS : SUCCESS_COOLDOWN_MS));
+    if (failed) {
+      const text = typeof body === 'string' ? body : JSON.stringify(body);
+      console.error(JSON.stringify({ severity: 'ERROR', message: `ingest ${key} failed with HTTP ${res.statusCode}`, path: key, status: res.statusCode, body: text?.slice(0, 2000) }));
+    }
+  };
+  const timer = setTimeout(release, MAX_IN_FLIGHT_MS);
+  timer.unref();
+  res.on('finish', release);
+  res.on('close', release);
 
   next();
 };
