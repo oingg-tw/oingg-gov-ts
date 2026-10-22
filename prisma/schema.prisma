@@ -577,6 +577,8 @@ model FundDailyNav {
 /// 只補資料集留空的欄位，資料集有值就以資料集為準。**哪些欄位是補的記在 supplementedFields，出處記在
 /// supplementSource**——supplementedFields 為空陣列的列就是純資料集原值。資料集哪天跟上，那些欄位就
 /// 不再有空可補，supplementedFields 會自然變空。
+/// 另外有「更正」（使用者 2026-10-21 核准）：資料集有值但被國發會公告明確推翻時，用公告值蓋掉，
+/// 目前只有第 14 循環高峰（資料集 2014-01，公告 2014-10）。更正一樣記在這兩欄；資料集修好後自動失效。
 model BusinessCycleReferenceDate {
   cycleNo Int @id @map("cycle_no") // 第幾次循環
 
@@ -588,8 +590,8 @@ model BusinessCycleReferenceDate {
   contractionMonths Int? @map("contraction_months") // 收縮期月數（來源原值）
   totalMonths       Int? @map("total_months") // 全循環月數（來源原值）
 
-  supplementedFields String[] @default([]) @map("supplemented_fields") // 哪些欄位是用公告補的（空=全是資料集原值）
-  supplementSource   String?  @map("supplement_source") // 補值出處：公告標題、日期、網址
+  supplementedFields String[] @default([]) @map("supplemented_fields") // 哪些欄位的值來自公告（補值或更正；空=全是資料集原值）
+  supplementSource   String?  @map("supplement_source") // 補值／更正出處：公告標題、日期、網址
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
