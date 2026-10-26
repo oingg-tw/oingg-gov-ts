@@ -1,0 +1,31 @@
+# 每週漏洞掃描（2026-10-27）。GitHub 的 Dependabot 警示會漏：2026-10-23 審核完的 5 則公告（body-parser
+# high、fast-uri），依賴圖明明列了受影響的版本，過了 3 天仍沒開警示，只有 pnpm audit 抓得到。
+# 有 high 以上就讓這次執行失敗，GitHub 會寄信通知。
+# - 只放 schedule（加 workflow_dispatch 可手動跑），不進 PR 的 checks：新公告跟 PR 改了什麼無關，放進
+#   checks 會讓每個無關的 PR（包括 Dependabot 自動合併）一起卡住。
+# - 排程的 workflow 只從「預設分支」上的這份檔案觸發。
+# - 公開 repo 連續 60 天沒有活動，GitHub 會自動停用排程 workflow。
+# - pnpm audit 只讀 lockfile，不需要 pnpm install。
+name: Weekly audit
+
+on:
+  schedule:
+    - cron: "0 1 * * 1" # 週一 09:00 台北，跟 Dependabot 同一時段
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 11
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - run: pnpm audit --prod --audit-level=high
