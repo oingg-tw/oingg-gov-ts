@@ -1,9 +1,10 @@
 # Dependabot（2026-10-13，使用者要求所有 oingg 專案一律採用「development 自動、main 手動」）。
 #
-# ⚠️ 兩個預設分支的後果（GitHub 官方文件）：
-#   1. 這份設定只從「預設分支」讀——GitHub 上是 main，所以檔案必須存在 main 才會生效。
-#   2. **安全性更新永遠針對預設分支**：掃 main 上的 manifest、PR 也開到 main，不會自動合併，由人審。
-#      target-branch 只影響版本更新。所以 main 和 development 要定期同步，安全警示才比對得到現行依賴。
+# 預設分支是 development（2026-10-27 從 main 改過來，使用者核准）。GitHub 官方文件的兩個後果：
+#   1. 這份設定只從「預設分支」讀，也就是 development 上的這份。
+#   2. **安全性更新永遠針對預設分支**：掃 development 的 manifest、PR 也開到 development，跟版本更新一樣，
+#      CI 通過、非 major 的會自動合併。改之前是開到 main 由人審，但 main 落後 development，警示比對的是舊的
+#      依賴。合進 development 不會部署，main 仍由人合。
 #
 # 版本更新打到 development；CI（.github/workflows/ci.yml）通過後，非 major 的由合併 job 自動合併。
 # development 合併到 main 一律由人來做——Cloud Build 的 deploy-on-push-to-main 只接 main，所以部署永遠經過人。

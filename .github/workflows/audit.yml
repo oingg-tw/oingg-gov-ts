@@ -3,7 +3,7 @@
 # 有 high 以上就讓這次執行失敗，GitHub 會寄信通知。
 # - 只放 schedule（加 workflow_dispatch 可手動跑），不進 PR 的 checks：新公告跟 PR 改了什麼無關，放進
 #   checks 會讓每個無關的 PR（包括 Dependabot 自動合併）一起卡住。
-# - 排程的 workflow 只從「預設分支」上的這份檔案觸發。
+# - 排程的 workflow 只從「預設分支」（development）上的這份檔案觸發。
 # - 公開 repo 連續 60 天沒有活動，GitHub 會自動停用排程 workflow。
 # - pnpm audit 只讀 lockfile，不需要 pnpm install。
 name: Weekly audit
