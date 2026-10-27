@@ -14,9 +14,9 @@
 # - minor 也放行：minor＋patch 合成一個群組 PR，fetch-metadata 回報群組裡最大的等級，只放 patch 的話
 #   群組 PR 永遠不會自動合。
 # - development 不接部署（Cloud Build 只接 main），所以自動合併不會觸發上線；main 一律由人合。
-# - 副作用（mops-ts 2026-10-13 指出，可接受）：Dependabot 的安全性更新 PR 固定開到 main、不會自動合併；但如果
-#   有人手動把它的 base 改成 development，edited 事件會觸發 CI，非 major 的就會被這個 job 自動合併進 development。
-#   改 base 本來就是人的決定，所以等於人已經同意了。要合到 main（也就是部署）仍然要人手動做。
+# - 預設分支是 development（2026-10-27 起），所以 Dependabot 的安全性更新 PR 也開到 development，非 major 的
+#   跟版本更新一樣被這個 job 自動合併（使用者核准）。要合到 main（也就是部署）仍然要人手動做。
+# - development 有 ruleset 要求 checks 通過才能合併（repo admin 可略過，人直接 push 不受影響）。
 # - 安全要點：用 pull_request（不是 pull_request_target）、作者用 pull_request.user.login 判斷（不是
 #   github.actor）、寫入權限只給這個 job、這個 job 不 checkout 也不執行 PR 的程式碼。
 name: CI
