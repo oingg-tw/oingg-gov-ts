@@ -77,15 +77,15 @@ steps:
   # 部署成功才走到這步（步驟依序執行，deploy 失敗整個 build 就停）：把正式站正在用的映像標成 prd。
   # Artifact Registry 的清理規則「保留最近 2 個」之外另有 Keep tagPrefixes [prd]——push 在 deploy 之前，
   # 連續兩次部署失敗會把正式站的映像擠出前 2 名，沒有這個標籤就會被清掉、下次冷啟動起不來（2026-10-27）。
+  # 用 docker tag + push，不用 gcloud artifacts docker tags add：後者移動既有標籤要 artifactregistry.tags.delete，
+  # 建置身分的 artifactregistry.writer 沒有（twse-ts 實測 PERMISSION_DENIED）；docker push 移動標籤只要 writer，
+  # 跟每次移動 latest 同一條路。
   - id: tag-prd
-    name: gcr.io/cloud-builders/gcloud
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     args:
-      - artifacts
-      - docker
-      - tags
-      - add
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:$SHORT_SHA
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:prd
+      - -c
+      - docker tag ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:$SHORT_SHA ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:prd && docker push ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:prd
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:$SHORT_SHA
