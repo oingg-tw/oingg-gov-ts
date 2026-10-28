@@ -84,6 +84,9 @@ export const schedulerConfig = {
     // 投信投顧公會 CSV（www.sitca.org.tw）
     { name: 'fund-basic-info-weekly', path: '/api/ingest/fund-basic-info', schedule: '27 3 * * 2' },
     { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '2 22 * * *' },
+    // 集保（opendata.tdcc.com.tw）——週資料卻每天抓：來源只給最新一期，哪週沒抓到就永遠補不回來，
+    // 每天抓等於一週七次機會；同一期重抓靠主鍵跳過。發布約在資料日後 1～2 天。
+    { name: 'tdcc-shareholding-distribution-daily', path: '/api/ingest/tdcc-shareholding-distribution', schedule: '42 5 * * *' },
     // 勞動部開放資料（apiservice.mol.gov.tw）——官方標示年更，但兩份都是「現況快照」（許可證會展延/
     // 停業/廢止，評鑑會補上新年度），每月跑一次確保狀態新鮮，成本只有兩個幾百 KB 的 CSV。
     { name: 'labor-broker-license-monthly', path: '/api/ingest/labor-broker-license', schedule: '2 6 5 * *' },
