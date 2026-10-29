@@ -102,18 +102,30 @@ describe('requireTaskSecret', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('strips surrounding quotes from TASK_SECRET before comparing (Docker/Cloud Run env-file quoting)', () => {
-    process.env.TASK_SECRET = '"correct-secret"';
-    const req = buildReq({ header: 'correct-secret' });
-    const res = buildRes();
-    let nextCalled = false;
+  it.each(['"correct-secret"', 'correct-secret\r', 'correct-secret\n', ' correct-secret'])(
+    'fails closed with 500 instead of cleaning up a dirty TASK_SECRET (%j)',
+    (dirty) => {
+      process.env.TASK_SECRET = dirty;
+      const req = buildReq({ header: 'correct-secret' });
+      const res = buildRes();
+      let nextCalled = false;
+      const errors: string[] = [];
+      const originalError = console.error;
+      console.error = (msg: string) => errors.push(msg);
 
-    requireTaskSecret(req, res, () => {
-      nextCalled = true;
-    });
+      try {
+        requireTaskSecret(req, res, () => {
+          nextCalled = true;
+        });
+      } finally {
+        console.error = originalError;
+      }
 
-    expect(nextCalled).toBe(true);
-  });
+      expect(nextCalled).toBe(false);
+      expect(res.statusCode).toBe(500);
+      expect(errors.join('\n')).toContain('TASK_SECRET');
+    }
+  );
 
   it('rejects a secret of a different length without throwing (timingSafeEqual requires equal-length buffers)', () => {
     process.env.TASK_SECRET = 'correct-secret';

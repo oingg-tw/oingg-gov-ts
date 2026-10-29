@@ -1,16 +1,19 @@
 /**
- * dotenv 會自動去掉 .env 檔案裡值兩側的引號（例如 TASK_SECRET="xxx"），但 `docker run --env-file`
- * 跟 Cloud Run 的環境變數設定都不會——直接把 .env 內容複製貼過去，引號會被當成值的一部分存進去，
- * 導致 secret 比對永遠失敗。這裡在讀取當下防禦性去掉一層對稱的引號，不管值實際上是從 dotenv
- * （已經去過引號）還是從外部注入（可能還帶著引號）來的都能正常運作。
- * （跟 oingg-twse-ts 的 src/shared/config.ts 做法一致，是這個生態系裡目前唯一完整驗證過的參考實作。）
+ * 讀環境變數；頭尾有空白、換行、控制字元或引號就丟錯並說出變數名，不幫忙修掉。
+ *
+ * 2026-10-29 之前這裡是 stripQuotes()（照 oingg-twse-ts），默默去掉頭尾空白跟一層引號。讀取端
+ * 吸收髒值，髒值就一直沒人發現，換一個不 trim 的讀取端才以 401/連線失敗的形式爆出來，離原因很遠
+ * （data-rust 一把結尾多 \r 的金鑰就是這樣被 mops 的 trim 藏住，mops b64c0ba 改成丟錯）。使用者
+ * 裁定值錯了在來源修（Secret Manager／.env），不在程式裡配合。
+ * dotenv 跟 `node --env-file` 本來就會去掉 .env 裡 KEY="..." 的引號，本機 .env 不受影響。
  */
-export function stripQuotes(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined;
-  const trimmed = value.trim();
-  const isDoubleQuoted = trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"');
-  const isSingleQuoted = trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'");
-  return isDoubleQuoted || isSingleQuoted ? trimmed.slice(1, -1) : trimmed;
+export function readCleanEnv(name: string): string | undefined {
+  const value = process.env[name];
+  // oxlint-disable-next-line no-control-regex -- 就是要抓頭尾的控制字元（\r、\0 等）
+  if (value !== undefined && /^[\s\x00-\x1f"']|[\s\x00-\x1f"']$/.test(value)) {
+    throw new Error(`${name} 頭尾有空白、換行或引號，請到來源（Secret Manager／.env）修掉，不要在程式裡去掉。`);
+  }
+  return value;
 }
 
 /**
