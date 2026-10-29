@@ -102,7 +102,7 @@ describe('requireTaskSecret', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it.each(['"correct-secret"', 'correct-secret\r', 'correct-secret\n', ' correct-secret'])(
+  it.each(['"correct-secret"', 'correct-secret\r', 'correct-secret\n', ' correct-secret', 'correct\nsecret'])(
     'fails closed with 500 instead of cleaning up a dirty TASK_SECRET (%j)',
     (dirty) => {
       process.env.TASK_SECRET = dirty;

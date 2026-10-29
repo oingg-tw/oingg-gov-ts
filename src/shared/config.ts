@@ -1,5 +1,6 @@
 /**
- * 讀環境變數；頭尾有空白、換行、控制字元或引號就丟錯並說出變數名，不幫忙修掉。
+ * 讀環境變數；頭尾有空白或引號、或任何位置有控制字元（\r、\n…）就丟錯並說出變數名，不幫忙修掉。
+ * 判斷式跟 oingg-twse-ts 的 src/infrastructure/cleanEnv.ts（b788f89）一致。
  *
  * 2026-10-29 之前這裡是 stripQuotes()（照 oingg-twse-ts），默默去掉頭尾空白跟一層引號。讀取端
  * 吸收髒值，髒值就一直沒人發現，換一個不 trim 的讀取端才以 401/連線失敗的形式爆出來，離原因很遠
@@ -9,9 +10,9 @@
  */
 export function readCleanEnv(name: string): string | undefined {
   const value = process.env[name];
-  // oxlint-disable-next-line no-control-regex -- 就是要抓頭尾的控制字元（\r、\0 等）
-  if (value !== undefined && /^[\s\x00-\x1f"']|[\s\x00-\x1f"']$/.test(value)) {
-    throw new Error(`${name} 頭尾有空白、換行或引號，請到來源（Secret Manager／.env）修掉，不要在程式裡去掉。`);
+  // oxlint-disable-next-line no-control-regex -- 就是要抓控制字元
+  if (value !== undefined && /^[\s"']|[\s"']$|[\x00-\x1f\x7f]/.test(value)) {
+    throw new Error(`${name} 頭尾有空白或引號，或含控制字元，請到來源（Secret Manager／.env）修掉，不要在程式裡去掉。`);
   }
   return value;
 }
