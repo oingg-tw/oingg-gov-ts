@@ -6,9 +6,9 @@ Postgres, in the same style as its sibling
 [oingg-mops-ts](https://github.com/oingg-tw/oingg-mops-ts). Scope isn't
 limited to any one agency — any Taiwan government data source is fair game.
 
-18 ingest domains are live, all of them scheduled, drawing on 7 official
-sources (CBC, DGBAS, NDC, the Ministry of Finance, the Ministry of Labor,
-SITCA, plus FRED and the ECB for US and euro-area series). Interactive docs at
+19 ingest domains are live, all of them scheduled, drawing on 8 sources
+(CBC, DGBAS, NDC, the Ministry of Finance, the Ministry of Labor, SITCA,
+plus FRED and the ECB for US and euro-area series). Interactive docs at
 `/api-docs`. New domains get added one at a time, from whichever agency has
 the data; `docs/資料來源合規對照表.md` records each source's licence and the
 attribution it obliges.

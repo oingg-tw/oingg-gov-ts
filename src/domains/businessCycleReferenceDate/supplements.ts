@@ -14,6 +14,8 @@ import type { BusinessCycleReferenceDatePoint } from '@/domains/businessCycleRef
 // （等於公告值）就什麼都不做；變成第三個值就不動、記 log 讓人來看——不會拿一條過時的更正蓋掉新資料。
 // 更正過的欄位一樣記在 supplementedFields / supplementSource，下游的判讀方式不變：有列在
 // supplementedFields 裡的欄位，值來自公告，不是資料集原值。
+// 刪除條件：錯在源頭，該修的是國發會的資料集。資料集的值改成公告值之後，那條更正就不再生效，
+// 確認後把它從 CORRECTIONS 刪掉，不要一直留著。
 
 type SupplementableField = 'troughStart' | 'peak' | 'troughEnd' | 'expansionMonths' | 'contractionMonths' | 'totalMonths';
 

@@ -37,8 +37,8 @@ import { ingestRateLimit } from '@/shared/rateLimiter';
 //
 // ingestRouter 整層掛了 requireTaskSecret + ingestRateLimit（跟 oingg-mops-ts 的做法一致：掛在
 // router 層級一次涵蓋全部現有跟未來的 /api/ingest/*，不用每個 route.ts 各自標註）——這幾個端點會
-// 真的去打 GCIS/CBC/財政部（company-industry-classification 甚至會下載 322MB 檔案），沒有保護的
-// 話任何人知道 URL 就能觸發，見 oingg-conductor-ts 的 docs/conventions.md「TASK_SECRET」一節。
+// 真的去打 CBC/主計總處/財政部等上游（labor-broker-tax-registration 甚至會串流下載 322MB 檔案），
+// 沒有保護的話任何人知道 URL 就能觸發，見 oingg-conductor-ts 的 docs/conventions.md「TASK_SECRET」一節。
 
 const router = Router();
 
