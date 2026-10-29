@@ -599,31 +599,3 @@ model BusinessCycleReferenceDate {
   @@map("business_cycle_reference_date")
   @@schema("public")
 }
-
-/// 集保戶股權分散表（data.gov.tw/dataset/11452，集保結算所檔案 opendata.tdcc.com.tw/getOD.ashx?id=1-5，
-/// 政府資料開放授權條款第 1 版），由 /api/ingest/tdcc-shareholding-distribution 觸發抓取。2026-10-28
-/// 使用者裁定由 gov 接手（原本 oingg-sitca-ts 打集保 OpenAPI 的同一份資料）。
-///
-/// 來源只給「最新一期」的全市場快照（週資料，資料日落在該週最後一個營業日，發布約晚 1～2 天）。
-/// **官方拿不到全市場歷史，錯過的那期就永遠補不回來**——所以每天抓、靠主鍵跳過已存在的列，而且
-/// 沒有 force（不能整批刪除重建）。同一期集保事後若修正，保留的是第一次抓到的版本（跟 sitca 相同）。
-///
-/// 17 個級距照原樣存：1～15 是真的持股級距（來源只給編號，不給股數區間）；16 是差異數調整、17 是
-/// 合計，都不是級距，全部加總會算成兩倍（2026-10-28 用 0050、2330 驗算：股數 1～15 加總 − 16 = 17）。
-/// 全 0 的列也保留：那個級距真的沒人，跟「沒抓到」不同。
-model TdccShareholdingDistribution {
-  symbol       String   @map("symbol") // 證券代號（來源補空白到 6 碼，已 trim）
-  dataDate     DateTime @map("data_date") @db.Date // 資料日期：快照反映的那一天，不是發布日也不是抓取日
-  holdingLevel Int      @map("holding_level") // 持股分級：1～15 級距、16 差異數調整、17 合計
-
-  holderCount BigInt  @map("holder_count") // 人數
-  shares      BigInt // 股數（來源原值，ETF 等是單位數）
-  custodyPct  Decimal @map("custody_pct") @db.Decimal(6, 2) // 占集保庫存數比例，單位 %（0～100）
-
-  createdAt DateTime @default(now()) @map("created_at") // = 第一次抓到的時間（export view 的 fetched_at）
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-
-  @@id([symbol, dataDate, holdingLevel])
-  @@map("tdcc_shareholding_distribution")
-  @@schema("public")
-}

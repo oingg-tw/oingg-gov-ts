@@ -19,7 +19,6 @@ import monthlyBusinessCycleIndicatorRouter from '@/domains/monthlyBusinessCycleI
 import businessCycleReferenceDateRouter from '@/domains/businessCycleReferenceDate/route';
 import fundBasicInfoRouter from '@/domains/fundBasicInfo/route';
 import fundDailyNavRouter from '@/domains/fundDailyNav/route';
-import tdccShareholdingDistributionRouter from '@/domains/tdccShareholdingDistribution/route';
 import { requireTaskSecret } from '@/shared/middleware';
 import { ingestRateLimit } from '@/shared/rateLimiter';
 // 每新增一個 domain（例如 exchangeRate、interestRate），在這裡 import 其 route.ts 並掛進 ingestRouter。
@@ -68,7 +67,6 @@ ingestRouter.use(monthlyBusinessCycleIndicatorRouter);
 ingestRouter.use(businessCycleReferenceDateRouter);
 ingestRouter.use(fundBasicInfoRouter);
 ingestRouter.use(fundDailyNavRouter);
-ingestRouter.use(tdccShareholdingDistributionRouter);
 
 router.use('/api/ingest', ingestRouter);
 
