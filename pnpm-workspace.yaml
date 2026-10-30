@@ -16,7 +16,7 @@ allowBuilds:
 # - braces <=3.0.3：沒有修補版，只在開發工具 tsc-alias 裡（chokidar、fast-glob），不進正式環境。
 overrides:
   proxy-addr: ^2.0.8 # critical：可偽造來源 IP；來自 ultimate-express、swagger-ui-express。上層範圍 ^2.0.7，修補版在範圍內
-  qs: ^6.16.0 # 來自 ultimate-express、swagger-ui-express > express；上層範圍 ^6.15.2，在範圍內
+  qs: ^6.16.1 # 來自 ultimate-express、swagger-ui-express > express；上層範圍 ^6.15.2，在範圍內。2026-10-30 從 ^6.16.0 拉高（GHSA-6pq8-jhm2-2vcw，<=6.16.0）
   fast-uri: ^3.1.9 # Prisma 內部（@prisma/dev > @prisma/streams-local > ajv）；2026-10-27 從 ^3.1.8 拉高（GHSA-w74x-v6f9-j3xg 等 4 則，<3.1.9）
   body-parser: ^2.4.0 # high，GHSA-27r3-jxmh-p828（<2.4.0）；來自 swagger-ui-express > express 5.2.1，上層範圍 ^2.2.1，修補版在範圍內（2026-10-27）
   source-map-js: ^1.2.2 # Prisma（c12 > magicast）與 vitest coverage 內部
