@@ -31,7 +31,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', rowCount: number
     // 抓的」，跟其他有明確業務期別的 dataset 不同（那些記資料本身涵蓋到的最新期別）。
     await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate: new Date(), rowCount, status } });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 

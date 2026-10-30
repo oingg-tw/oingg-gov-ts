@@ -156,7 +156,8 @@ model DailyUsdTwdRate {
 
 /// 美國 GNP 隱含物價平減指數季資料，由 /api/ingest/quarterly-us-gnp-deflator 觸發向 FRED 固定路徑 CSV
 /// （fredgraph.csv?id=GNPDEF，見 adapters/fred/client.ts）抓取。gov-ts 第一個非台灣來源（2026-09-22
-/// 使用者裁定）。用途：analysis-ts 的 Ohlson (1980) O-Score，SIZE 變數原文定義是 log(總資產 ÷ GNP 物價
+/// 使用者裁定）。用途：數據中台的 Ohlson (1980) O-Score（原本是 analysis-ts，現在是 oingg-data-rust 的
+/// pit/reference.rs），SIZE 變數原文定義是 log(總資產 ÷ GNP 物價
 /// 指數)、指數以 1968 年 = 100，之前直接用新台幣千元總資產取 log，幣別跟物價水準差讓全市場 O-Score
 /// 系統性偏低；修正要靠這個序列跟 daily_usd_twd_rate。存 FRED 原值（2017 = 100），換基期到 1968 由
 /// 下游做。每次 ingest 整批刪除重建（BEA 修正值會回頭改歷史，見 service.ts）。
@@ -457,21 +458,22 @@ model MonthlyBusinessCycleIndicator {
   @@schema("public")
 }
 
-/// analysis-ts「數據中台」export 契約層的一部分（2026-08-31 應 analysis-ts 要求新增）。這不是內部
-/// 使用的表——export schema 只授權 SELECT 給一個專用的唯讀 role（etl_reader），analysis-ts 靠這張
-/// 表判斷某個 dataset 的某批資料是否「可信、已完成」：他們只認 status = 'success' 的紀錄，raw 表
-/// 裡就算已經有資料，沒有對應的 success 紀錄也當作不存在。
+/// export 層的握手表（2026-08-31 應當時的數據中台 analysis-ts 要求新增；它已由 oingg-data-rust 取代）。
+/// export schema 只授權 SELECT 給一個專用的唯讀 role（etl_reader）。設計上的約定是下游只認
+/// status = 'success' 的紀錄：raw 表裡就算已經有資料，沒有對應的 success 紀錄也當作不存在。
+/// **但這個約定從來沒有讀者實作過**（analysis-ts 2026-10-10 查過 0 處讀取，data-rust 2026-10-30 也沒有），
+/// 照常寫入，改它目前不影響任何下游。
 ///
 /// 顆粒度是「一次 ingest 呼叫」，不是逐月——CBC 的 EG43M01en 端點本身一次就回傳 1987-M5 至今整段
 /// 月資料，沒有自然的逐月分批單位（見 MonthlyGovBondYield10y 的註解）。dataDate 記這批資料實際涵蓋
-/// 到的最新月份（不是「今天」，是資料本身的最新業務日期），讓 analysis-ts 知道資料新鮮到哪個月。
+/// 到的最新月份（不是「今天」，是資料本身的最新業務日期），讓下游知道資料新鮮到哪個月。
 model IngestionRun {
   runId       BigInt   @id @default(autoincrement()) @map("run_id")
   dataset     String // 對應 export schema 裡的哪個 view，例如 "monthly_gov_bond_yield_10y"
   dataDate    DateTime @map("data_date") @db.Date // 這批資料涵蓋到的最新業務日期（不是 ingest 執行的時間）
   // completedAt 與 sourceLastModified 是「時間點」，所以存 TIMESTAMPTZ——跟本 schema 其他 36 個
   // createdAt/updatedAt（不帶時區的 TIMESTAMP(3)）刻意不一致，**不要為了一致改回去**。理由是這張表
-  // 是 analysis-ts 跨五個後台用同一套邏輯讀的握手表，而另外三個的實際 DDL 都是 TIMESTAMPTZ
+  // 是五個後台共用同一份定義的握手表，而另外三個的實際 DDL 都是 TIMESTAMPTZ
   // （twse-ts / tpex-ts / mops-ts，2026-10-08 核對 migration 原文），gov-ts 原本是唯一的例外。
   // 不帶時區時，任何把 session TimeZone 設成 Asia/Taipei 的讀者（BI 工具），或用原生 pg client
   // 讀的人（pg 預設把 timestamp 當本地時間解析），讀到的時間點都會偏 8 小時。那 36 個簿記欄位

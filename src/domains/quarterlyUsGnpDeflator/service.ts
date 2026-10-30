@@ -24,7 +24,7 @@ const recordIngestionRun = async (
     const dataDate = latest ? new Date(Date.UTC(latest.year, (latest.quarter - 1) * 3, 1)) : new Date();
     await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status, sourceLastModified } });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 

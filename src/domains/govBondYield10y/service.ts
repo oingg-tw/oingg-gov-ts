@@ -15,8 +15,8 @@ export interface IngestGovBondYield10yResult {
   error?: string;
 }
 
-// analysis-ts 的 export 契約層只認 export.ingestion_runs 裡 status='success' 的紀錄，raw 表有資料
-// 但沒對應紀錄的，他們當作不存在——所以每次 ingest（不論成功或失敗）都要記一筆。這是輔助性的記帳
+// export.ingestion_runs 的約定是下游只認 status='success' 的紀錄，raw 表有資料但沒對應紀錄的
+// 當作不存在（目前沒有讀者實作，見 schema.prisma 的 IngestionRun）——所以每次 ingest（不論成功或失敗）都要記一筆。這是輔助性的記帳
 // 動作，失敗不能讓主要的 ingest 結果跟著失敗，包一層 try/catch，最多 console.error。
 const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyGovBondYield10yPoint[]): Promise<void> => {
   try {
@@ -32,7 +32,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyG
       data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status },
     });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 
