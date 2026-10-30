@@ -69,6 +69,55 @@ Cxqd+1/8ldRis/tO/JWZsMm5ruvCppwCZUdXjSNI5R1OxzVwTVLzsCoiSYPV0agd
 a5dQ9wayB6OohBK7+ZU2V3sZwE2xwHdDzfhbdzmI++TxtOurDHbkfkED
 -----END CERTIFICATE-----`;
 
+// 2026-10-30 補：ws.dgbas.gov.tw 2026-10-07 換了新憑證，改由另一條鏈簽發：
+//   葉憑證 -> TWCA SSL Certification Authority（下面這張）-> TWCA CYBER Root CA
+// CYBER Root 已在 Node 內建信任清單裡（node 26 實測，指紋跟 TWCA 官網的 cyber_root_2022.crt 相同），
+// 只缺中繼憑證。10/23 失業率抓取失敗（unable to verify the first certificate），CPI 10/10 的失敗很可能
+// 也是同一個原因：那時伺服器只送葉憑證，這個 adapter 只有舊鏈的中繼憑證。10/30 實測伺服器有送完整鏈，
+// 所以照常驗得過；補上這張是為了伺服器又只送葉憑證時也不會斷。
+// 上面跟下面的舊鏈兩張是 10-07 以前的；確定主計總處不會再換回舊憑證後可以刪掉。
+// 來源：http://sslserver.twca.com.tw/cacert/Cyber_SSL_2023.crt（葉憑證 AIA 指向的位址），sha256 指紋
+// 01:AF:23:24…:E5:31，跟伺服器送的中繼憑證相同；用 openssl verify 實測過只靠葉憑證加上這張就能驗證通過。
+const TWCA_SSL_CA_PEM = `-----BEGIN CERTIFICATE-----
+MIIG1DCCBLygAwIBAgIQQAE0sE8AAAAAAAAAA+MkrDANBgkqhkiG9w0BAQwFADBQ
+MQswCQYDVQQGEwJUVzESMBAGA1UEChMJVEFJV0FOLUNBMRAwDgYDVQQLEwdSb290
+IENBMRswGQYDVQQDExJUV0NBIENZQkVSIFJvb3QgQ0EwHhcNMjMwMjIzMDcyMjI0
+WhcNMzMwMjIzMTU1OTU5WjBhMQswCQYDVQQGEwJUVzESMBAGA1UEChMJVEFJV0FO
+LUNBMRMwEQYDVQQLEwpTU0wgU3ViLUNBMSkwJwYDVQQDEyBUV0NBIFNTTCBDZXJ0
+aWZpY2F0aW9uIEF1dGhvcml0eTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoC
+ggIBAMquxiSlMrxfOO29yqxCo/BIYBswnE7snZnuZDPcx8N9WhOdNGDsF024VjXK
+nXoVaZBcv56eFsU+w9Mcq+uIVYzjVrBoe5u8ZLE0hPSkluH8URhcxtSQJ+gXcB0L
+JHsseAeXVcgqoxTSJ6/n0xTCeXEnGwSRAzrqTvjS2gbd3TILxsfIHwRgwwPjBDgm
+tjzbHHOFTJB3GCtH65T9A0viM2B/IW9Wz73jkz02AVMrZBHQ67IJ2W9CoIjd5mdG
+eIV36U9NXl+wZa/D90pLRsFVbItKgLXgF71CQ92vS/biTx8fA6UUCU2ToNczP5Ur
+A/mDXCBCLakwa1I3ylRkgFwluJw9DqiYh56MRgsEABa+ZPrm1Qb9njQZK4Y4V+ML
+IvGM3xVoHIlvaSN29ubTueLpTeuAwN2VTiRzfOyCRKTcMBCtlMw1WCJNAMiNWDWS
+BMnY9SlKv1oujmjS/ti0ptcipMymIoeWpVuQt3Mj8lYlKRpd6Zg8MbljMwQRSClK
+6O6MSwpM3Xy5uJGh2cY5oYmKtxfyHSuKtKsk+daAPV1lpWYp9bNrbsLUPwmSY+zk
+VgkZdiWBF//RP/72/esANONINy5hkWjkVd0NLjA5TAgk+DVVmnPtQIj1vBgtk8ak
+Y9CczIbEgKBonkHWn+GX2ycR6jadg2P+xrBFg4MGjomkb2gtAgMBAAGjggGXMIIB
+kzAfBgNVHSMEGDAWgBSdhWEUfMFib5do5E83QOGt4A1WNzAdBgNVHQ4EFgQU8ijU
++dQcfhprFoLl75Mpae3KFSAwDgYDVR0PAQH/BAQDAgEGMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMEoGA1UdIARDMEEwNQYLKwYBBAGCvyUBARUwJjAkBggrBgEFBQcCARYY
+aHR0cHM6Ly93d3cudHdjYS5jb20udHcvMAgGBmeBDAECAjBNBgNVHR8ERjBEMEKg
+QKA+hjxodHRwOi8vUm9vdENBLnR3Y2EuY29tLnR3L1RXQ0FSQ0EvY3liZXJfcm9v
+dF9yZXZva2VfMjAyMi5jcmwwEgYDVR0TAQH/BAgwBgEB/wIBADB9BggrBgEFBQcB
+AQRxMG8wQwYIKwYBBQUHMAKGN2h0dHA6Ly9zc2xzZXJ2ZXIudHdjYS5jb20udHcv
+Y2FjZXJ0L2N5YmVyX3Jvb3RfMjAyMi5jcnQwKAYIKwYBBQUHMAGGHGh0dHA6Ly9y
+b290b2NzcC50d2NhLmNvbS50dy8wDQYJKoZIhvcNAQEMBQADggIBAIFF/6Gnvu8L
+3xQDIampB8QVgoKS2bcjte0uJBbCrQHpzcGTuVTkZaiA86LwVz6SAU7TVgVYRXmt
+x8l29WzfKI6wOAzmvlGZxSYAdN0I6YBkJK1nmDs0+TSw5lCzb+UOpajNOaMdJ5SN
+YTN87yRwl82AFrwUmSLaMV4tN7W49N0SsELWs/d4uNHSMM0mBjd0hLDIWJFwOkuD
+yOWahnCVfPlCwSVWpUntOGgOHOA02IUE+JNX+spIV1SwAMYaEVyHe316YUgiGA5y
+k3liTa3vuv06eE1J2yiWrs9booW2VTHD+amzucFFNN1KvSLjSbYxG1t/FclHEN/y
+6hGM3bkjRC31A0jzpv93D3MUQTdJascicPa0H4i8hviRriyetaC6HC4q8FQUTo2A
+cEpxicNGgyHhDV+YdbnS6GZL+f3bsmMM8ZFYZ77mDTS9mRO1VnIwkjiN4vpzh67a
+KTpoD9TQzZcGQiJy6Pi+PCSFiqjK7UD/63L/Pt0hpoNKvZLrz4ngrlpyzpx8KjeS
+A5cjKcc6vlHm0Kk07k5djhJsaqQELso5r+UXi9qC+nwqPuR/w5kJZv4fz0ND4UhY
+5y3qd+iCikkF3WzOzey7jUH9URKb3iZnRAHZvmyLK57UI0FwP+5xZEByvwXDtxbe
+914Hj3cSUrmKT3g/ZlOQQ1THeu48MA79
+-----END CERTIFICATE-----`;
+
 // 來源：https://sslserver.twca.com.tw/cacert/root4096.crt（TWCA Global Root CA，Node 內建的
 // Mozilla 信任清單裡沒有這張，要自己補）
 const TWCA_ROOT_PEM = `-----BEGIN CERTIFICATE-----
@@ -103,7 +152,7 @@ G9BLIdsgguMi6U/jXSvEORIXKMa5Z7F94bJ8duU2hNp0Xqw4tmv47qEDxLDEXBJM
 bwbaOkRltjaXDBh50EaXMx+rUqjO3le0KBM4t6w=
 -----END CERTIFICATE-----`;
 
-const dgbasHttpsAgent = new https.Agent({ ca: [...tls.rootCertificates, TWCA_INTERMEDIATE_PEM, TWCA_ROOT_PEM] });
+const dgbasHttpsAgent = new https.Agent({ ca: [...tls.rootCertificates, TWCA_INTERMEDIATE_PEM, TWCA_ROOT_PEM, TWCA_SSL_CA_PEM] });
 
 export interface DgbasObs {
   item: string; // 統計項目名稱，例如 "總指數(指數基期：民國110年=100)"
