@@ -1,5 +1,7 @@
+import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
+import { X509Certificate } from 'node:crypto';
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
 
 // 行政院主計總處統計網站的固定路徑 XML 下載檔案（ws.dgbas.gov.tw），不是正式 REST API——每份
@@ -78,7 +80,7 @@ a5dQ9wayB6OohBK7+ZU2V3sZwE2xwHdDzfhbdzmI++TxtOurDHbkfkED
 // 上面跟下面的舊鏈兩張是 10-07 以前的；確定主計總處不會再換回舊憑證後可以刪掉。
 // 來源：http://sslserver.twca.com.tw/cacert/Cyber_SSL_2023.crt（葉憑證 AIA 指向的位址），sha256 指紋
 // 01:AF:23:24…:E5:31，跟伺服器送的中繼憑證相同；用 openssl verify 實測過只靠葉憑證加上這張就能驗證通過。
-const TWCA_SSL_CA_PEM = `-----BEGIN CERTIFICATE-----
+export const TWCA_SSL_CA_PEM = `-----BEGIN CERTIFICATE-----
 MIIG1DCCBLygAwIBAgIQQAE0sE8AAAAAAAAAA+MkrDANBgkqhkiG9w0BAQwFADBQ
 MQswCQYDVQQGEwJUVzESMBAGA1UEChMJVEFJV0FOLUNBMRAwDgYDVQQLEwdSb290
 IENBMRswGQYDVQQDExJUV0NBIENZQkVSIFJvb3QgQ0EwHhcNMjMwMjIzMDcyMjI0
@@ -152,7 +154,80 @@ G9BLIdsgguMi6U/jXSvEORIXKMa5Z7F94bJ8duU2hNp0Xqw4tmv47qEDxLDEXBJM
 bwbaOkRltjaXDBh50EaXMx+rUqjO3le0KBM4t6w=
 -----END CERTIFICATE-----`;
 
-const dgbasHttpsAgent = new https.Agent({ ca: [...tls.rootCertificates, TWCA_INTERMEDIATE_PEM, TWCA_ROOT_PEM, TWCA_SSL_CA_PEM] });
+const BASE_CA = [...tls.rootCertificates, TWCA_INTERMEDIATE_PEM, TWCA_ROOT_PEM, TWCA_SSL_CA_PEM];
+const learnedCa: string[] = []; // AIA 補回來的中繼憑證，只存在這個 instance 的記憶體裡
+let dgbasHttpsAgent = new https.Agent({ ca: BASE_CA });
+
+/**
+ * 伺服器沒送中繼憑證時，照瀏覽器跟 Windows 的做法（AIA chasing）從憑證的 CA Issuers 網址把缺的
+ * 中繼憑證抓回來（2026-10-30 使用者核准）。這樣主計總處下次換憑證，就不用等人手動把新的中繼憑證貼進上面。
+ *
+ * 抓回來的憑證會被加進 ca，而 **ca 裡的每一張都是信任錨點**，所以一定要先確認它一路接得上原本就
+ * 信任的憑證：簽章、CA 旗標、有效期都要驗。不然中間人只要在假憑證的 AIA 放自己的 CA，就會被信任。
+ * 回傳要加進 ca 的 PEM；接不上就回空陣列，讓呼叫端照原本的錯誤失敗。
+ */
+export const resolveMissingIntermediates = async (
+  leaf: X509Certificate,
+  downloadCert: (url: string) => Promise<X509Certificate>,
+  trusted: X509Certificate[],
+  now = new Date()
+): Promise<string[]> => {
+  const chain: X509Certificate[] = [];
+  let child = leaf;
+  for (let depth = 0; depth < 3; depth++) {
+    const url = child.infoAccess?.match(/CA Issuers - URI:(https?:\/\/\S+)/)?.[1];
+    if (!url) return [];
+    const issuer = await downloadCert(url);
+    const issuedChild = issuer.ca && child.checkIssued(issuer) && child.verify(issuer.publicKey);
+    if (!issuedChild || now < issuer.validFromDate || now > issuer.validToDate) return [];
+    chain.push(issuer);
+    if (trusted.some((t) => issuer.checkIssued(t) && issuer.verify(t.publicKey))) return chain.map((c) => c.toString());
+    child = issuer;
+  }
+  return [];
+};
+
+// 只為了讀伺服器送的葉憑證：握手完就關，不送任何請求，所以這裡關掉驗證不會讓未驗證的連線傳出資料。
+const fetchPeerLeaf = (host: string): Promise<X509Certificate> =>
+  new Promise((resolve, reject) => {
+    const socket = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: false }, () => {
+      const cert = socket.getPeerX509Certificate();
+      socket.end();
+      if (cert) resolve(cert);
+      else reject(new Error(`${host} 沒有送出憑證`));
+    });
+    socket.setTimeout(15_000, () => socket.destroy(new Error(`${host} TLS 連線逾時`)));
+    socket.on('error', reject);
+  });
+
+// AIA 網址是從還沒驗證過的憑證讀出來的，限制大小跟時間；內容是 DER 或 PEM 都行。
+const downloadCert = (url: string): Promise<X509Certificate> =>
+  new Promise((resolve, reject) => {
+    const client = url.startsWith('https:') ? https : http;
+    const req = client.get(url, { headers: { 'User-Agent': OUTBOUND_USER_AGENT }, timeout: 15_000 }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`AIA 憑證下載失敗：HTTP ${res.statusCode}（url=${url}）`));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on('data', (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > 65_536) req.destroy(new Error(`AIA 憑證超過 64KB（url=${url}）`));
+        else chunks.push(chunk);
+      });
+      res.on('end', () => {
+        try {
+          resolve(new X509Certificate(Buffer.concat(chunks)));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error(`AIA 憑證下載逾時（url=${url}）`)));
+    req.on('error', reject);
+  });
 
 export interface DgbasObs {
   item: string; // 統計項目名稱，例如 "總指數(指數基期：民國110年=100)"
@@ -165,7 +240,30 @@ export interface DgbasObs {
 // 已用真實回應核對過：CPI 檔案 88,614 個 <Obs>，這個 regex 全部解析成功、一個不漏（2026-09-02）。
 const OBS_REGEX = /<Obs>\s*<Item>([^<]*)<\/Item>\s*<TIME_PERIOD>([^<]*)<\/TIME_PERIOD>\s*<FREQ>([^<]*)<\/FREQ>\s*<TYPE>([^<]*)<\/TYPE>\s*<Item_VALUE>([^<]*)<\/Item_VALUE>\s*<\/Obs>/g;
 
-export const fetchDgbasXml = (url: string): Promise<string> => {
+export const fetchDgbasXml = async (url: string): Promise<string> => {
+  try {
+    return await downloadXml(url);
+  } catch (error) {
+    // UNABLE_TO_VERIFY_LEAF_SIGNATURE 就是「unable to verify the first certificate」：伺服器沒送中繼憑證。
+    // 其他憑證錯誤（過期、根憑證不受信任、網域不符）是真的安全問題，照常失敗。
+    if ((error as NodeJS.ErrnoException).code !== 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') throw error;
+    let pems: string[];
+    try {
+      const trusted = [...BASE_CA, ...learnedCa].map((pem) => new X509Certificate(pem));
+      pems = await resolveMissingIntermediates(await fetchPeerLeaf(new URL(url).hostname), downloadCert, trusted);
+    } catch (aiaError) {
+      throw new Error(`${(error as Error).message}；AIA 補中繼憑證也失敗：${(aiaError as Error).message}`, { cause: error });
+    }
+    if (pems.length === 0) throw error;
+    learnedCa.push(...pems);
+    dgbasHttpsAgent = new https.Agent({ ca: [...BASE_CA, ...learnedCa] });
+    const subjects = pems.map((pem) => new X509Certificate(pem).subject.replace(/\n/g, ', ')).join(' / ');
+    console.warn(JSON.stringify({ severity: 'WARNING', message: `${new URL(url).hostname} 沒送中繼憑證，已從 AIA 補上（${subjects}）。請把它貼進 dgbas/client.ts，免得每次冷啟動都要重抓。` }));
+    return downloadXml(url);
+  }
+};
+
+const downloadXml = (url: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     https
       .get(url, { agent: dgbasHttpsAgent, headers: { 'User-Agent': OUTBOUND_USER_AGENT } }, (res) => {
