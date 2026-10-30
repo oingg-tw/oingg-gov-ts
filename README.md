@@ -200,13 +200,16 @@ For contrast, the previous revision ran on Cloud Run's 512Mi default with no `NO
 per cold instance. So the fix cut the peak by ~100MB while carrying a heavier load, and
 headroom went from roughly a quarter to roughly six sevenths.
 
-Why the old config survived at all: the load is thinner than the schedule reads. Only two
-jobs run daily (`cbc-policy-rate` 05:02 and `fund-daily-nav` 22:02, seven hours apart, each
-on its own cold instance), and the rest are release-date aligned across different days of
-the month. The one dense window is the 5th, when five jobs fire between 03:02 and 03:52 and
-share a warm instance — four of the five were added on 2026-09-21/22, so it first runs on
-2026-10-05. Those five carry ~21,000 rows between them, fewer than the ~30,000 in the
-2026-09-25 test above, so that window now has ample margin.
+Why the old config survived at all: the load was thinner than the schedule read. At the
+time only two jobs ran daily, and the rest were aligned to release dates spread across the
+month.
+
+Since 2026-10-30 the eleven small CBC/DGBAS/NDC/FRED jobs run every day between 03:02 and
+03:57, five minutes apart, so they share a warm instance in sequence rather than in
+parallel. A month-aligned job that hit a late file or a failed fetch waited a whole month
+for its next try; see the header of `scripts/scheduler.config.ts`. Most daily runs insert
+nothing (`skipDuplicates`). The heaviest of them, unemployment rate at ~12,000 rows, is
+below the ~30,000 rows of the 2026-09-25 test above.
 
 `concurrency` is still Cloud Run's default of 80. In practice it is always 1 — jobs are
 minutes apart and each ingest route holds a per-dataset in-flight lock — but that is
