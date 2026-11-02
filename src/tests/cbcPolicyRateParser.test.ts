@@ -42,9 +42,8 @@ describe('parseCbcPolicyRate', () => {
     expect(points).toEqual([]);
   });
 
-  it('skips rows where a rate is not numeric', () => {
-    const points = parseCbcPolicyRate(buildResponse([['20240322', 'N/A', '9.999', '2.000', '2.375']]));
-    expect(points).toEqual([]);
+  it('throws when a rate is neither a number nor the "-" missing marker', () => {
+    expect(() => parseCbcPolicyRate(buildResponse([['20240322', 'N/A', '9.999', '2.000', '2.375']]))).toThrow(/無法解析的數字「N\/A」/);
   });
 
   it('skips non-array rows without throwing', () => {

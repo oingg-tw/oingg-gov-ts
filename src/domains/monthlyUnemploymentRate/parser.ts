@@ -1,4 +1,5 @@
 import type { MonthlyUnemploymentRatePoint, UnemploymentCategory } from '@/domains/monthlyUnemploymentRate/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 這份檔案跟 monthlyCpi/quarterlyGdp 用的 DataSet/Obs 格式完全不同，是攤平的
 // <DataCollection><失業率><年月別_Year_and_month>...</...>...</失業率>...</DataCollection>，每個
@@ -56,9 +57,10 @@ export const parseMonthlyUnemploymentRate = (xml: string): MonthlyUnemploymentRa
 
     for (const [fieldName, category] of Object.entries(FIELD_CATEGORY_MAP)) {
       const raw = fields.get(fieldName);
-      if (raw === undefined || raw === '') continue; // 缺值，不寫入（不是 0）
-      const ratePercent = Number(raw);
-      if (Number.isNaN(ratePercent)) continue;
+      if (raw === undefined) continue; // 這一列沒有這個欄位，不寫入（不是 0）
+      // "-" 是尚未統計的月份（2026-11-03 實測：1978 年的 65 歲以上），之前被 Number.isNaN 默默跳過
+      const ratePercent = parseSourceNumber(raw, ['', '-'], `主計總處失業率 ${period} ${fieldName}`);
+      if (ratePercent === null) continue; // 缺值，不寫入（不是 0）
       points.push({ year, month, category, ratePercent });
     }
   }

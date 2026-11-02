@@ -21,8 +21,8 @@ model MonthlyGovBondYield10y {
 
   yieldRate Decimal @map("yield_rate") @db.Decimal(8, 4)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, month])
   @@map("monthly_gov_bond_yield_10y")
@@ -64,8 +64,8 @@ model MonthlyFiveMajorBankRate {
   depositRate1y   Decimal @map("deposit_rate_1y") @db.Decimal(8, 4) // 一年期定存利率
   baseLendingRate Decimal @map("base_lending_rate") @db.Decimal(8, 4) // 基準放款利率
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, month])
   @@map("monthly_five_major_bank_rate")
@@ -92,8 +92,8 @@ model CbcPolicyRate {
   collateralAccommodationRate Decimal @map("collateral_accommodation_rate") @db.Decimal(8, 4)
   unsecuredAccommodationRate  Decimal @map("unsecured_accommodation_rate") @db.Decimal(8, 4)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([effectiveDate])
   @@map("cbc_policy_rate")
@@ -120,8 +120,8 @@ model MonthlyMonetaryAggregate {
   m2Amount      Decimal  @map("m2_amount") @db.Decimal(14, 0)
   m2YoyPercent  Decimal? @map("m2_yoy_percent") @db.Decimal(8, 2)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, month])
   @@map("monthly_monetary_aggregate")
@@ -146,8 +146,8 @@ model DailyUsdTwdRate {
   bankSellingRate      Decimal? @map("bank_selling_rate") @db.Decimal(8, 3)
   interbankClosingRate Decimal? @map("interbank_closing_rate") @db.Decimal(8, 3)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([tradeDate])
   @@map("daily_usd_twd_rate")
@@ -167,8 +167,8 @@ model QuarterlyUsGnpDeflator {
 
   indexValue Decimal @map("index_value") @db.Decimal(10, 3) // 2017 = 100
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, quarter])
   @@map("quarterly_us_gnp_deflator")
@@ -190,8 +190,8 @@ model UsPolicyRate {
   targetUpper Decimal @map("target_upper") @db.Decimal(8, 4)
   targetLower Decimal @map("target_lower") @db.Decimal(8, 4)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("us_policy_rate")
   @@schema("public")
@@ -222,8 +222,8 @@ model EcbPolicyRate {
 
   mainRefinancingIsMinimumBid Boolean @map("main_refinancing_is_minimum_bid")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("ecb_policy_rate")
   @@schema("public")
@@ -249,8 +249,8 @@ model MonthlyStockMarketSummary {
   avgTaiex             Decimal  @map("avg_taiex") @db.Decimal(10, 2)
   avgTaiexYoyPercent   Decimal? @map("avg_taiex_yoy_percent") @db.Decimal(8, 3)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, month])
   @@map("monthly_stock_market_summary")
@@ -267,9 +267,9 @@ model LaborBrokerLicense {
   rawLicenseNo String @map("raw_license_no") // 原始補零格式，例如 "0002" 或換證的 "0002-1"
 
   agencyName        String  @map("agency_name")
-  address           String
-  phone             String
-  responsiblePerson String  @map("responsible_person")
+  address           String? // 來源空白存 null（以下兩欄同）
+  phone             String?
+  responsiblePerson String? @map("responsible_person")
   taxId             String? @map("tax_id") // 8 碼統編；約 2% 的列空白或格式不合，存 null
 
   professionalStaffCount Int? @map("professional_staff_count")
@@ -283,8 +283,8 @@ model LaborBrokerLicense {
   terminatedDate      DateTime? @map("terminated_date") @db.Date
   revokedDate         DateTime? @map("revoked_date") @db.Date
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([taxId])
   @@map("labor_broker_license")
@@ -312,8 +312,8 @@ model LaborBrokerEvaluation {
   hasSuspension     Boolean @map("has_suspension") // 停業處分及申報暫停營業
   hasMajorViolation Boolean @map("has_major_violation") // 重大違法行為
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, licenseNo])
   @@index([licenseNo])
@@ -336,8 +336,8 @@ model LaborBrokerTaxRegistration {
   address           String
   isPrimaryIndustry Boolean @map("is_primary_industry") // true = 稅籍的「行業代號」主欄，false = 次要欄位
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([taxId, industryCode])
   @@index([industryCode])
@@ -360,8 +360,8 @@ model MonthlyCpi {
   indexValue       Decimal? @map("index_value") @db.Decimal(10, 4)
   yoyChangePercent Decimal? @map("yoy_change_percent") @db.Decimal(8, 4)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, month, category])
   @@map("monthly_cpi")
@@ -392,8 +392,8 @@ model QuarterlyGdp {
   contributionPoints Decimal? @map("contribution_points") @db.Decimal(10, 4) // 原始值，百分點貢獻度（Item_VALUE 對應「原始值」TYPE，實測最大值 25.43，Decimal(10,4) 夠用）
   yoyChangePercent   Decimal? @map("yoy_change_percent") @db.Decimal(14, 4) // 年增率(%)——實測驗證過「國外淨需求-小計」1986Q1 這欄真實值是 24300（基期接近零時年增率會爆量，不是資料錯誤），比其他 domain 的 yoyChangePercent 欄位（Decimal(8,4)）寬很多就是為了撐住這種極端值
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, quarter, category])
   @@map("quarterly_gdp")
@@ -422,8 +422,8 @@ model MonthlyUnemploymentRate {
 
   ratePercent Decimal? @map("rate_percent") @db.Decimal(8, 4)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, month, category])
   @@map("monthly_unemployment_rate")
@@ -450,8 +450,8 @@ model MonthlyBusinessCycleIndicator {
   signalScore              Decimal? @map("signal_score") @db.Decimal(6, 2) // 景氣對策信號綜合分數
   signalLight              String?  @map("signal_light") // 景氣對策信號燈號文字原文
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, month])
   @@map("monthly_business_cycle_indicator")
@@ -471,15 +471,10 @@ model IngestionRun {
   runId       BigInt   @id @default(autoincrement()) @map("run_id")
   dataset     String // 對應 export schema 裡的哪個 view，例如 "monthly_gov_bond_yield_10y"
   dataDate    DateTime @map("data_date") @db.Date // 這批資料涵蓋到的最新業務日期（不是 ingest 執行的時間）
-  // completedAt 與 sourceLastModified 是「時間點」，所以存 TIMESTAMPTZ——跟本 schema 其他 36 個
-  // createdAt/updatedAt（不帶時區的 TIMESTAMP(3)）刻意不一致，**不要為了一致改回去**。理由是這張表
-  // 是五個後台共用同一份定義的握手表，而另外三個的實際 DDL 都是 TIMESTAMPTZ
-  // （twse-ts / tpex-ts / mops-ts，2026-10-08 核對 migration 原文），gov-ts 原本是唯一的例外。
-  // 不帶時區時，任何把 session TimeZone 設成 Asia/Taipei 的讀者（BI 工具），或用原生 pg client
-  // 讀的人（pg 預設把 timestamp 當本地時間解析），讀到的時間點都會偏 8 小時。那 36 個簿記欄位
-  // 沒有跟著改，是因為每個 export view 都引用 updated_at，PostgreSQL 不准 ALTER TYPE 被 view
-  // 依賴的欄位，改它們等於 drop/重建 18 個 view；而兄弟 repo 的簿記欄位也是 TIMESTAMP，那邊本來
-  // 就一致。
+  // completedAt 與 sourceLastModified 是「時間點」，所以存 TIMESTAMPTZ（twse-ts / tpex-ts / mops-ts
+  // 的握手表也是，2026-10-08 核對）。不帶時區時，任何把 session TimeZone 設成 Asia/Taipei 的讀者
+  // （BI 工具），或用原生 pg client 讀的人（pg 預設把 timestamp 當本地時間解析），讀到的時間點都會
+  // 偏 8 小時。其他表的 createdAt/updatedAt 同樣理由，2026-11-03 起也是 TIMESTAMPTZ(3)。
   completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
   rowCount    Int      @map("row_count")
   status      String // success | partial | failed
@@ -503,8 +498,8 @@ model IngestionRun {
 /// 檔案驗證過涵蓋 ETF(被動+主動式都有，例如「兆豐台灣豐收主動式ETF基金」)，不是只有傳統基金。
 /// 這份檔案本身是「當月快照」，不是累積歷史，每次 ingest 只新增當月一批。isinCode 跟(year, month)
 /// 一起是唯一鍵——實測發現極少數列(4433筆裡1筆)ISIN Code是空的，這種列在 service.ts 就被過濾掉，
-/// 不會出現在這張表。fundInceptionDate/fundSizeDate 故意存原始字串不轉型別，來源未標明是西元還是
-/// 民國格式，比照 CompanyProfile.companySetupDate 的做法，避免猜錯換算規則。
+/// 不會出現在這張表。fundInceptionDate/fundSizeDate 來源是西元 YYYYMMDD（2026-11-03 查 4,432 列全是
+/// 8 碼、範圍 1986-01-04～2026-07-31），存 DATE；之前存原始字串，理由「來源未標明西元或民國」實測不成立。
 model FundBasicInfo {
   year  Int
   month Int
@@ -512,21 +507,22 @@ model FundBasicInfo {
   companyName          String   @map("company_name") // 基金公司(投信)名稱
   fundName             String   @map("fund_name")
   fundTaxId            String   @map("fund_tax_id") // 統編
-  fundInceptionDate    String   @map("fund_inception_date") // 基金/級別成立日期，原始格式
-  fundSizeDate         String   @map("fund_size_date") // 基金規模日期，原始格式
-  fundSizeCurrency     String   @map("fund_size_currency")
-  classSizeAmount      Decimal? @map("class_size_amount") @db.Decimal(20, 4) // 基金級別規模_金額
-  fundSizeAmount       Decimal? @map("fund_size_amount") @db.Decimal(20, 4) // 基金規模(依基金別)_金額
-  fundType             String   @map("fund_type") // 例如"(AH22) 跨國投資指數股票型_債券型"
-  investmentRegion     String   @map("investment_region")
-  dividendPolicy       String   @map("dividend_policy")
+  fundInceptionDate    DateTime? @map("fund_inception_date") @db.Date // 基金/級別成立日期
+  fundSizeDate         DateTime? @map("fund_size_date") @db.Date // 基金規模日期
+  fundSizeCurrency     String    @map("fund_size_currency") // ISO 4217（來源寫「台幣」，parser 對照轉換）
+  classSizeAmount      Decimal?  @map("class_size_amount") @db.Decimal(20, 4) // 基金級別規模_金額
+  fundSizeAmount       Decimal?  @map("fund_size_amount") @db.Decimal(20, 4) // 基金規模(依基金別)_金額
+  fundTypeCode         String    @map("fund_type_code") // 例如 "AH22"（來源 "(AH22) 跨國投資指數股票型_債券型" 拆開）
+  fundTypeName         String    @map("fund_type_name") // 例如 "跨國投資指數股票型_債券型"
+  investmentRegion     String    @map("investment_region")
+  dividendPolicy       String?   @map("dividend_policy") // 來源空白存 null
   isinCode             String   @map("isin_code")
   custodianDomestic    String?  @map("custodian_domestic")
   custodianForeign     String?  @map("custodian_foreign")
   denominationCurrency String   @map("denomination_currency")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([year, month, isinCode])
   @@index([fundTaxId])
@@ -554,8 +550,8 @@ model FundDailyNav {
   currency        String
   beneficiaryCode String   @map("beneficiary_code")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([tradeDate, beneficiaryCode])
   @@index([fundTaxId])
@@ -595,8 +591,8 @@ model BusinessCycleReferenceDate {
   supplementedFields String[] @default([]) @map("supplemented_fields") // 哪些欄位的值來自公告（補值或更正；空=全是資料集原值）
   supplementSource   String?  @map("supplement_source") // 補值／更正出處：公告標題、日期、網址
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("business_cycle_reference_date")
   @@schema("public")

@@ -1,5 +1,6 @@
 import type { CbcApiResponse } from '@/adapters/cbc';
 import type { DailyUsdTwdRatePoint } from '@/domains/dailyUsdTwdRate/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 三個欄位在 data.structure 裡的顯示名稱（2026-09-21 用真實回應核對過）。同一份表還有「收盤價日平均」
 // （日資料裡整份全是 "-"）跟「遠期信用狀融通利率」兩欄，不取。用名稱比對找欄位索引，不寫死位置。
@@ -8,12 +9,6 @@ const COLUMN_NAMES = {
   bankSellingRate: 'Spot exchange rates of the N.T. dollar against the U.S. dollar-Bank-customer rates-Selling',
   interbankClosingRate: 'Spot exchange rates of the N.T. dollar against the U.S. dollar-Interbank closing rate',
 } as const;
-
-const toNumberOrNull = (v: unknown): number | null => {
-  if (typeof v !== 'string' || v === '-') return null;
-  const n = Number(v);
-  return Number.isNaN(n) ? null : n;
-};
 
 // data.dataSets 每一列是 [期間字串 YYYYMMDD, 五個欄位的字串數值或 "-"]。
 export const parseDailyUsdTwdRate = (raw: CbcApiResponse): DailyUsdTwdRatePoint[] => {
@@ -48,9 +43,10 @@ export const parseDailyUsdTwdRate = (raw: CbcApiResponse): DailyUsdTwdRatePoint[
     const match = period.match(/^(\d{4})(\d{2})(\d{2})$/);
     if (!match) continue;
 
-    const bankBuyingRate = toNumberOrNull(row[buyingIdx]);
-    const bankSellingRate = toNumberOrNull(row[sellingIdx]);
-    const interbankClosingRate = toNumberOrNull(row[closingIdx]);
+    const num = (idx: number) => parseSourceNumber(row[idx], ['-'], `CBC EG51D01en ${period} 第 ${idx} 欄`);
+    const bankBuyingRate = num(buyingIdx);
+    const bankSellingRate = num(sellingIdx);
+    const interbankClosingRate = num(closingIdx);
     if (bankBuyingRate === null && bankSellingRate === null && interbankClosingRate === null) continue; // 三欄全缺才跳過
 
     points.push({

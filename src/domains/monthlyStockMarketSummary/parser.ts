@@ -1,5 +1,6 @@
 import type { CbcApiResponse } from '@/adapters/cbc';
 import type { MonthlyStockMarketSummaryPoint } from '@/domains/monthlyStockMarketSummary/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 六個欄位在 data.structure 裡的顯示名稱（2026-09-22 用真實回應核對過）。用名稱比對找欄位索引。
 const COLUMN_NAMES = {
@@ -14,12 +15,6 @@ const COLUMN_NAMES = {
 // 跟 monthlyMonetaryAggregate 一樣的交錯配對：structure 第 i 欄的值在 row[1 + 2i]、年增率在 row[2 + 2i]
 // （6 欄 ↔ 每列 12 個值，實測）。年增率只留加權指數那一個，其餘五欄的年增率下游要的話自己算。
 const VALUES_PER_COLUMN = 2;
-
-const toNumberOrNull = (v: unknown): number | null => {
-  if (typeof v !== 'string' || v === '-') return null;
-  const n = Number(v);
-  return Number.isNaN(n) ? null : n;
-};
 
 export const parseMonthlyStockMarketSummary = (raw: CbcApiResponse): MonthlyStockMarketSummaryPoint[] => {
   const tableKey = Object.keys(raw.data?.structure ?? {})[0];
@@ -62,8 +57,9 @@ export const parseMonthlyStockMarketSummary = (raw: CbcApiResponse): MonthlyStoc
       throw new Error(`CBC EG27M01en 的列長度 ${row.length} 跟 1 + 2 × ${columns.length} 欄不符，值/年增率交錯配對的假設可能已變更。`);
     }
 
-    const value = (i: number) => toNumberOrNull(row[1 + VALUES_PER_COLUMN * i]);
-    const yoy = (i: number) => toNumberOrNull(row[2 + VALUES_PER_COLUMN * i]);
+    const num = (pos: number) => parseSourceNumber(row[pos], ['-'], `CBC EG27M01en ${period} 第 ${pos} 欄`);
+    const value = (i: number) => num(1 + VALUES_PER_COLUMN * i);
+    const yoy = (i: number) => num(2 + VALUES_PER_COLUMN * i);
 
     const listedCompanies = value(idx.listedCompanies);
     const totalParValue = value(idx.totalParValue);

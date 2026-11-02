@@ -1,5 +1,6 @@
 import type { CbcApiResponse } from '@/adapters/cbc';
 import type { MonthlyGovBondYield10yPoint } from '@/domains/govBondYield10y/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 目標欄位在 data.structure 裡的顯示名稱（已用真實回應核對過，2026-08-28）。用名稱比對找欄位索引，
 // 不寫死數字位置（例如「第 20 欄」）——CBC 官方文件沒承諾欄位順序永遠不變，用名稱比對比較不會因為
@@ -35,11 +36,9 @@ export const parseMonthlyGovBondYield10y = (raw: CbcApiResponse): MonthlyGovBond
     const match = period.match(/^(\d{4})M(\d{2})$/);
     if (!match) continue; // 格式不符預期的期間，跳過而不是猜
 
-    const rawValue = row[columnIndex + 1]; // +1：row[0] 是期間字串，不是資料欄
-    if (typeof rawValue !== 'string' || rawValue === '-') continue; // "-" 是 CBC 的缺值標記
-
-    const yieldRate = Number(rawValue);
-    if (Number.isNaN(yieldRate)) continue;
+    // +1：row[0] 是期間字串，不是資料欄；"-" 是 CBC 的缺值標記
+    const yieldRate = parseSourceNumber(row[columnIndex + 1], ['-'], `CBC EG43M01en ${period}`);
+    if (yieldRate === null) continue;
 
     points.push({ year: Number(match[1]), month: Number(match[2]), yieldRate });
   }

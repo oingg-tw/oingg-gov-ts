@@ -1,5 +1,6 @@
 import { parseDgbasObsXml } from '@/adapters/dgbas/client';
 import type { CpiCategory, MonthlyCpiPoint } from '@/domains/monthlyCpi/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 用 Item 欄位的前綴比對，不比對完整字串——官方原始值是「總指數(指數基期：民國110年=100)」這種
 // 「名稱+基期標註」組合字串，基期標註在官方換基期年時會變（例如以後可能改成「民國115年=100」），
@@ -46,9 +47,8 @@ export const parseMonthlyCpi = (xml: string): MonthlyCpiPoint[] => {
       points.set(key, point);
     }
 
-    if (obs.value === '') continue; // 缺值，維持 null
-    const value = Number(obs.value);
-    if (Number.isNaN(value)) continue; // 格式不合法的數字字串，跳過不寫入而不是猜
+    const value = parseSourceNumber(obs.value, [''], `主計總處 CPI ${key} ${obs.type}`);
+    if (value === null) continue; // 缺值，維持 null
 
     if (obs.type === '原始值') point.indexValue = value;
     else if (obs.type === '年增率(%)') point.yoyChangePercent = value;

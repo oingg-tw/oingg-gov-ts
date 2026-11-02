@@ -1,4 +1,5 @@
 import type { UsPolicyRatePoint } from '@/domains/usPolicyRate/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // Fed 的目標利率在 FRED 上被切成三個序列，因為 2008-12-16 起制度從「單一目標值」改成「目標區間」：
 export const LEGACY_TARGET_SERIES = 'DFEDTAR'; // 單一目標，1982-09-27 → 2008-12-15
@@ -20,9 +21,8 @@ const parseFredRows = (csv: string, seriesId: string): [string, number][] => {
     const [date, rawValue] = line.split(',');
     if (!date || rawValue === undefined) continue;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-    if (rawValue.trim() === '.') continue; // FRED 缺值標記
-    const value = Number(rawValue);
-    if (Number.isNaN(value)) continue;
+    const value = parseSourceNumber(rawValue, ['.'], `FRED ${seriesId} ${date}`);
+    if (value === null) continue; // "." 是 FRED 的缺值標記
     rows.push([date, value]);
   }
   return rows;

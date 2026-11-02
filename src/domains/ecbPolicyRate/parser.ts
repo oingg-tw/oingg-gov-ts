@@ -1,4 +1,5 @@
 import type { EcbPolicyRatePoint } from '@/domains/ecbPolicyRate/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // ECB 的三大政策利率（官方稱 "key ECB interest rates"），SDMX dataflow FM、日頻率、歐元區合計：
 export const DEPOSIT_FACILITY_SERIES = 'FM/D.U2.EUR.4F.KR.DFR.LEV'; // 存款機制利率
@@ -28,9 +29,8 @@ const parseEcbRows = (csv: string, seriesPath: string): [string, number][] => {
     const rawValue = cells[valueIndex];
     if (!date || rawValue === undefined) continue;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-    if (rawValue.trim() === '') continue; // ECB 的缺值是空字串
-    const value = Number(rawValue);
-    if (Number.isNaN(value)) continue;
+    const value = parseSourceNumber(rawValue, [''], `ECB ${seriesPath} ${date}`);
+    if (value === null) continue; // ECB 的缺值是空字串
     rows.push([date, value]);
   }
   if (rows.length === 0) {

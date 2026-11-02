@@ -1,16 +1,18 @@
 import { normalizeLicenseNo } from '@/adapters/mol/client';
 import type { LaborBrokerEvaluationPoint } from '@/domains/laborBrokerEvaluation/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 export const MOL_RESOURCE_ID = 'A17020000J-000001-buF'; // data.gov.tw/dataset/9332 的 CSV
 
 const EXPECTED_HEADER =
   '年度,許可證號,公司名稱,區域,地址,品質管理（統計數值）,違規處分（統計數值）,顧客服務（統計數值）,其他事項（統計數值）,總成績（統計數值）,停業處分及申報暫停營業,重大違法行為';
 
-const toNumberOrNull = (raw: string | undefined): number | null => {
-  const v = (raw ?? '').trim();
-  if (v === '') return null;
-  const n = Number(v);
-  return Number.isNaN(n) ? null : n;
+// 來源是 Y／N，其他值（含空白）丟錯——之前是「不是 Y 就當 false」，來源改寫法會安靜地全變 false。
+const toBoolean = (raw: string | undefined, field: string): boolean => {
+  const v = (raw ?? '').trim().toUpperCase();
+  if (v === 'Y') return true;
+  if (v === 'N') return false;
+  throw new Error(`${field}：預期 Y／N，收到「${raw}」，來源格式可能已變更。`);
 };
 
 export const parseLaborBrokerEvaluation = (csv: string): LaborBrokerEvaluationPoint[] => {
@@ -38,19 +40,21 @@ export const parseLaborBrokerEvaluation = (csv: string): LaborBrokerEvaluationPo
     if (seen.has(key)) continue;
     seen.add(key);
 
+    const at = `勞動部評鑑結果 ${rocYear} 年 ${licenseNo}`;
+    const score = (i: number, field: string) => parseSourceNumber(f[i] ?? '', [''], `${at} ${field}`);
     points.push({
       year,
       licenseNo,
       companyName: (f[2] ?? '').trim(),
       region: (f[3] ?? '').trim(),
       address: (f[4] ?? '').trim(),
-      qualityScore: toNumberOrNull(f[5]),
-      violationScore: toNumberOrNull(f[6]),
-      customerServiceScore: toNumberOrNull(f[7]),
-      otherScore: toNumberOrNull(f[8]),
-      totalScore: toNumberOrNull(f[9]),
-      hasSuspension: (f[10] ?? '').trim().toUpperCase() === 'Y',
-      hasMajorViolation: (f[11] ?? '').trim().toUpperCase() === 'Y',
+      qualityScore: score(5, '品質管理'),
+      violationScore: score(6, '違規處分'),
+      customerServiceScore: score(7, '顧客服務'),
+      otherScore: score(8, '其他事項'),
+      totalScore: score(9, '總成績'),
+      hasSuspension: toBoolean(f[10], `${at} 停業處分及申報暫停營業`),
+      hasMajorViolation: toBoolean(f[11], `${at} 重大違法行為`),
     });
   }
 

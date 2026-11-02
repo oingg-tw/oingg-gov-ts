@@ -1,5 +1,6 @@
 import { parseDgbasObsXml } from '@/adapters/dgbas/client';
 import type { GdpCategory, QuarterlyGdpPoint } from '@/domains/quarterlyGdp/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 用完整字串比對，不是前綴比對（跟 monthlyCpi 不同）——GDP 這份檔案只有 12 個項目，彼此不是像 CPI
 // 那樣有「大類/細項」的階層關係，完整字串比對更精確，也能在官方改了項目名稱時直接拋錯而不是誤判成
@@ -43,9 +44,8 @@ export const parseQuarterlyGdp = (xml: string): QuarterlyGdpPoint[] => {
       points.set(key, point);
     }
 
-    if (obs.value === '') continue;
-    const value = Number(obs.value);
-    if (Number.isNaN(value)) continue;
+    const value = parseSourceNumber(obs.value, [''], `主計總處 GDP ${key} ${obs.type}`);
+    if (value === null) continue;
 
     if (obs.type === '原始值') point.contributionPoints = value;
     else if (obs.type === '年增率(%)') point.yoyChangePercent = value;

@@ -29,18 +29,6 @@ export const fetchMolCsv = async (resourceId: string): Promise<MolCsvFetchResult
   return { content, lastModified: lastModified && !Number.isNaN(lastModified.getTime()) ? lastModified : null };
 };
 
-// 勞動部這兩份檔案的日期欄位都是西元 8 碼（例如 "20061020"），不是民國年。空字串代表「沒有這個
-// 狀態」（例如沒停業、沒廢止），回 null 而不是 0 或今天。
-export const parseMolDate = (raw: string | undefined): Date | null => {
-  const v = (raw ?? '').trim();
-  if (!/^\d{8}$/.test(v)) return null;
-  const year = Number(v.slice(0, 4));
-  const month = Number(v.slice(4, 6));
-  const day = Number(v.slice(6, 8));
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return new Date(Date.UTC(year, month - 1, day));
-};
-
 // 許可證號在兩份檔案裡格式不同：許可名冊補零成 4 碼（"0002"，換證的會帶後綴 "0002-1"），評鑑結果
 // 不補零（"2"）。去掉前導零當作 join key，2026-09-22 實測 5,431 列評鑑資料 100% 對得上名冊。
 export const normalizeLicenseNo = (raw: string): string => raw.trim().replace(/^0+(?=\d)/, '');

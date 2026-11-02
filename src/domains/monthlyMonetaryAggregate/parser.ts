@@ -1,5 +1,6 @@
 import type { CbcApiResponse } from '@/adapters/cbc';
 import type { MonthlyMonetaryAggregatePoint } from '@/domains/monthlyMonetaryAggregate/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 三個總計數在 data.structure 裡的顯示名稱（2026-09-21 用真實回應核對過）。用名稱比對找欄位索引，
 // 不寫死位置，理由同 govBondYield10y/parser.ts。
@@ -15,12 +16,6 @@ const COLUMN_NAMES = {
 const AMOUNT_OFFSET = 1;
 const YOY_OFFSET = 2;
 const VALUES_PER_COLUMN = 2;
-
-const toNumberOrNull = (v: unknown): number | null => {
-  if (typeof v !== 'string' || v === '-') return null;
-  const n = Number(v);
-  return Number.isNaN(n) ? null : n;
-};
 
 export const parseMonthlyMonetaryAggregate = (raw: CbcApiResponse): MonthlyMonetaryAggregatePoint[] => {
   const tableKey = Object.keys(raw.data?.structure ?? {})[0];
@@ -59,8 +54,9 @@ export const parseMonthlyMonetaryAggregate = (raw: CbcApiResponse): MonthlyMonet
       throw new Error(`CBC EF15M01en 的列長度 ${row.length} 跟 1 + 2 × ${columns.length} 欄不符，餘額/年增率交錯配對的假設可能已變更。`);
     }
 
-    const amount = (idx: number) => toNumberOrNull(row[AMOUNT_OFFSET + VALUES_PER_COLUMN * idx]);
-    const yoy = (idx: number) => toNumberOrNull(row[YOY_OFFSET + VALUES_PER_COLUMN * idx]);
+    const num = (pos: number) => parseSourceNumber(row[pos], ['-'], `CBC EF15M01en ${period} 第 ${pos} 欄`);
+    const amount = (idx: number) => num(AMOUNT_OFFSET + VALUES_PER_COLUMN * idx);
+    const yoy = (idx: number) => num(YOY_OFFSET + VALUES_PER_COLUMN * idx);
 
     const m1aAmount = amount(m1aIdx);
     const m1bAmount = amount(m1bIdx);
