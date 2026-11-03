@@ -32,9 +32,8 @@ describe('parseMonthlyGovBondYield10y', () => {
     expect(points).toEqual([]);
   });
 
-  it('skips rows where the target value is not numeric', () => {
-    const points = parseMonthlyGovBondYield10y(buildResponse([['2026M06', '1.111', 'N/A', '9.999']]));
-    expect(points).toEqual([]);
+  it('throws when the target value is neither a number nor the "-" missing marker', () => {
+    expect(() => parseMonthlyGovBondYield10y(buildResponse([['2026M06', '1.111', 'N/A', '9.999']]))).toThrow(/無法解析的數字「N\/A」/);
   });
 
   it('skips non-array rows without throwing', () => {

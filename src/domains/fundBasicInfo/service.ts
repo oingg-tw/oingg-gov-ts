@@ -33,7 +33,7 @@ const recordIngestionRun = async (
       data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status, sourceLastModified },
     });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 
@@ -71,7 +71,8 @@ export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasi
     fundSizeCurrency: p.fundSizeCurrency,
     classSizeAmount: p.classSizeAmount,
     fundSizeAmount: p.fundSizeAmount,
-    fundType: p.fundType,
+    fundTypeCode: p.fundTypeCode,
+    fundTypeName: p.fundTypeName,
     investmentRegion: p.investmentRegion,
     dividendPolicy: p.dividendPolicy,
     isinCode: p.isinCode,

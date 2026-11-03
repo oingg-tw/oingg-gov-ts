@@ -15,7 +15,7 @@ export interface IngestCbcPolicyRateResult {
   error?: string;
 }
 
-// 記帳邏輯同 govBondYield10y/service.ts：analysis-ts 只認 status='success' 的紀錄，每次都要記；
+// 記帳邏輯同 govBondYield10y/service.ts：下游約定只認 status='success' 的紀錄，每次都要記；
 // 失敗不能拖垮主要 ingest 結果。dataDate 取這批資料裡最新的生效日——這個序列的「新鮮度」就是
 // 最近一次利率調整的日期，不是今天。
 const recordIngestionRun = async (status: 'success' | 'failed', points: CbcPolicyRatePoint[]): Promise<void> => {
@@ -25,7 +25,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: CbcPolic
       data: { dataset: EXPORT_DATASET, dataDate: latest ?? new Date(), rowCount: points.length, status },
     });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 

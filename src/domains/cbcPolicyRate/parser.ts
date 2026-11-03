@@ -1,5 +1,6 @@
 import type { CbcApiResponse } from '@/adapters/cbc';
 import type { CbcPolicyRatePoint } from '@/domains/cbcPolicyRate/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 三個欄位在 data.structure 裡的顯示名稱（2026-09-21 用真實回應核對過）。注意日頻率版本 EG28D01en
 // 的欄名跟月頻率 EG2AM01en 不一樣（月版是 "Discount rate"/"Interest rate on accommodations with
@@ -12,7 +13,7 @@ const COLUMN_NAMES = {
 } as const;
 
 // data.dataSets 每一列是 [期間字串, 三個欄位的字串數值或 "-"]，期間字串格式如 "20240322"。
-// 三個利率同日同步調整，實測 77 列全部三欄都有值；任一欄缺值（"-" 或非數字）就整列跳過，
+// 三個利率同日同步調整，實測 77 列全部三欄都有值；任一欄缺值（"-"）就整列跳過，非數字則丟錯，
 // 不寫入部分欄位——這種列不符合「一次調整事件」的語意，寧可少一列也不要存半列。
 export const parseCbcPolicyRate = (raw: CbcApiResponse): CbcPolicyRatePoint[] => {
   const tableKey = Object.keys(raw.data?.structure ?? {})[0];
@@ -47,12 +48,7 @@ export const parseCbcPolicyRate = (raw: CbcApiResponse): CbcPolicyRatePoint[] =>
     const match = period.match(/^(\d{4})(\d{2})(\d{2})$/);
     if (!match) continue;
 
-    const toNumber = (idx: number): number | null => {
-      const v = row[idx];
-      if (typeof v !== 'string' || v === '-') return null;
-      const n = Number(v);
-      return Number.isNaN(n) ? null : n;
-    };
+    const toNumber = (idx: number) => parseSourceNumber(row[idx], ['-'], `CBC EG28D01en ${period} 第 ${idx} 欄`);
     const discountRate = toNumber(discountIdx);
     const collateralAccommodationRate = toNumber(collateralIdx);
     const unsecuredAccommodationRate = toNumber(unsecuredIdx);

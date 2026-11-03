@@ -48,8 +48,8 @@ describe('parseMonthlyCpi', () => {
     expect(parseMonthlyCpi(xml)).toEqual([]);
   });
 
-  it('skips a non-numeric Item_VALUE instead of writing NaN', () => {
+  it('throws on a non-numeric Item_VALUE instead of storing null', () => {
     const xml = obs('總指數', '1981M01', 'M', '原始值', 'N/A');
-    expect(parseMonthlyCpi(xml)).toEqual([{ year: 1981, month: 1, category: 'total', indexValue: null, yoyChangePercent: null }]);
+    expect(() => parseMonthlyCpi(xml)).toThrow(/無法解析的數字「N\/A」/);
   });
 });

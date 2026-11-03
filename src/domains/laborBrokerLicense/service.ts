@@ -18,7 +18,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: LaborBro
     // 未來日期（2026-09-22 實測抓到 2026-10-13），讓下游的新鮮度判斷失真。
     await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate: new Date(), rowCount: points.length, status, sourceLastModified } });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 

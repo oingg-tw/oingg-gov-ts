@@ -1,4 +1,5 @@
 import type { QuarterlyUsGnpDeflatorPoint } from '@/domains/quarterlyUsGnpDeflator/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 export const FRED_SERIES_ID = 'GNPDEF';
 
@@ -24,9 +25,8 @@ export const parseQuarterlyUsGnpDeflator = (csv: string): QuarterlyUsGnpDeflator
       throw new Error(`FRED ${FRED_SERIES_ID} 出現非季首日的日期「${date}」，序列頻率可能已變更。`);
     }
 
-    if (rawValue.trim() === '.') continue; // FRED 缺值標記
-    const indexValue = Number(rawValue);
-    if (Number.isNaN(indexValue)) continue;
+    const indexValue = parseSourceNumber(rawValue, ['.'], `FRED ${FRED_SERIES_ID} ${date}`);
+    if (indexValue === null) continue; // "." 是 FRED 的缺值標記
 
     points.push({ year: Number(match[1]), quarter: (month - 1) / 3 + 1, indexValue });
   }

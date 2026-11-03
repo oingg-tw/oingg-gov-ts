@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { config, stripQuotes } from '@/shared/config';
+import { config, readCleanEnv } from '@/shared/config';
 
 // Prisma 7 removed schema-level `url`/`directUrl` — the runtime client now needs a driver adapter
 // passed in explicitly. Pooled connection (DATABASE_URL, 帶 -pooler) here; `prisma migrate` uses
 // the direct (non-pooled) DIRECT_URL instead, configured separately in prisma.config.ts.
-const adapter = new PrismaPg({ connectionString: stripQuotes(process.env.DATABASE_URL) });
+// 值髒的話在這裡丟錯，服務起不來，Cloud Run 會繼續用舊 revision。
+const adapter = new PrismaPg({ connectionString: readCleanEnv('DATABASE_URL') });
 
 // Instantiate a single PrismaClient instance to be used across the application.
 export const prisma = new PrismaClient({

@@ -23,7 +23,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: UsPolicy
       data: { dataset: EXPORT_DATASET, dataDate: latest ?? new Date(), rowCount: points.length, status, sourceLastModified },
     });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 

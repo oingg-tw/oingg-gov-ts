@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseLaborBrokerLicense } from '@/domains/laborBrokerLicense/parser';
 import { parseLaborBrokerEvaluation } from '@/domains/laborBrokerEvaluation/parser';
-import { normalizeLicenseNo, parseMolDate } from '@/adapters/mol/client';
+import { normalizeLicenseNo } from '@/adapters/mol/client';
 
 const LIC_HEADER =
   '許可證,機構名稱,機構地址,電話,負責人姓名,公司統一編號,專業人員人數,從業人員人數,許可證起始日,許可證終止日,停業起始日,停業屆滿日,預訂復業日期,終止營業日期,廢止許可日期';
@@ -14,16 +14,6 @@ describe('normalizeLicenseNo', () => {
     expect(normalizeLicenseNo('2')).toBe('2');
     expect(normalizeLicenseNo('0002-1')).toBe('2-1');
     expect(normalizeLicenseNo('0100')).toBe('100');
-  });
-});
-
-describe('parseMolDate', () => {
-  it('parses AD yyyymmdd and rejects blanks and malformed values', () => {
-    expect(parseMolDate('20061020')).toEqual(new Date(Date.UTC(2006, 9, 20)));
-    expect(parseMolDate('')).toBeNull();
-    expect(parseMolDate(undefined)).toBeNull();
-    expect(parseMolDate('2006102')).toBeNull();
-    expect(parseMolDate('20061320')).toBeNull(); // 13 月
   });
 });
 
@@ -45,16 +35,36 @@ describe('parseLaborBrokerLicense', () => {
     expect(p!.licenseEndDate).toEqual(new Date(Date.UTC(2026, 9, 20)));
   });
 
-  it('stores a null tax id when the field is blank or malformed', () => {
-    const csv = `${LIC_HEADER}\n0009,測試有限公司,臺北市,02-1,王小明,,0,0,20200101,20220101,,,,,\n0010,測試二,臺北市,02-2,李小華,1234,0,0,20200101,20220101,,,,,\n`;
-    const points = parseLaborBrokerLicense(csv);
-    expect(points.map((p) => p.taxId)).toEqual([null, null]);
+  it('stores a null tax id for the placeholders the real file uses, and throws on anything else', () => {
+    const row = (no: string, tax: string) => `${no},測試,臺北市,02-1,王小明,${tax},0,0,20200101,20220101,,,,,`;
+    const csv = [LIC_HEADER, ...['', 'X', 'ｎ', '37999', '00000000'].map((tax, i) => row(String(i + 1), tax))].join('\n');
+    expect(parseLaborBrokerLicense(csv).map((p) => p.taxId)).toEqual([null, null, null, null, null]);
+    expect(() => parseLaborBrokerLicense(`${LIC_HEADER}\n${row('9', '8683-2290')}`)).toThrow(/公司統一編號.*無法解析的統一編號/);
+  });
+
+  it('throws on a duplicated or missing licence number instead of silently keeping one row', () => {
+    const row = (no: string) => `${no},測試,臺北市,02-1,王小明,86832290,0,0,20200101,20220101,,,,,`;
+    expect(() => parseLaborBrokerLicense([LIC_HEADER, row('0007'), row('7')].join('\n'))).toThrow(/許可證號 7 重複出現/);
+    expect(() => parseLaborBrokerLicense([LIC_HEADER, row('')].join('\n'))).toThrow(/沒有許可證號/);
   });
 
   it('keeps the revoked/terminated dates that make a licence invalid', () => {
     const csv = `${LIC_HEADER}\n0001,允啟開發有限公司,臺北市,02-27276999,李心玲,86486468,0,2,20061020,20081019,,,,20070119,\n`;
     const [p] = parseLaborBrokerLicense(csv);
     expect(p!.terminatedDate).toEqual(new Date(Date.UTC(2007, 0, 19)));
+  });
+
+  it('stores blank address, phone and responsible person as null, not ""', () => {
+    const csv = `${LIC_HEADER}\n0011,測試三,,,,86832290,0,0,20200101,20220101,,,,,\n`;
+    expect(parseLaborBrokerLicense(csv)[0]).toMatchObject({ address: null, phone: null, responsiblePerson: null });
+  });
+
+  it('throws on a malformed date or headcount instead of storing null', () => {
+    const row = (date: string, staff: string) => `${LIC_HEADER}\n0012,測試四,臺北市,02-3,王,86832290,0,${staff},${date},20220101,,,,,\n`;
+    expect(() => parseLaborBrokerLicense(row('2020/01/01', '0'))).toThrow(/許可證起始日.*無法解析的日期/);
+    expect(() => parseLaborBrokerLicense(row('20201320', '0'))).toThrow(/無法解析的日期/);
+    expect(() => parseLaborBrokerLicense(row('20200101', '12人'))).toThrow(/從業人員人數.*無法解析的數字/);
+    expect(() => parseLaborBrokerLicense(row('20200101', '2.5'))).toThrow(/不是整數/);
   });
 
   it('throws when the header changes', () => {
@@ -76,11 +86,20 @@ describe('parseLaborBrokerEvaluation', () => {
     });
   });
 
-  it('keeps one row per (year, licence) and tolerates repeats', () => {
-    const csv = `${EVAL_HEADER}\n113,7,甲公司,臺北市,路一,1,1,1,1,4,N,N\n113,0007,甲公司,臺北市,路一,9,9,9,9,36,N,N\n112,7,甲公司,臺北市,路一,2,2,2,2,8,N,N\n`;
-    const points = parseLaborBrokerEvaluation(csv);
-    expect(points).toHaveLength(2);
-    expect(points.map((p) => `${p.year}-${p.licenseNo}`)).toEqual(['2024-7', '2023-7']);
+  it('keeps one row per (year, licence) and throws on a repeat instead of silently keeping the first', () => {
+    const csv = `${EVAL_HEADER}\n113,7,甲公司,臺北市,路一,1,1,1,1,4,N,N\n112,7,甲公司,臺北市,路一,2,2,2,2,8,N,N\n`;
+    expect(parseLaborBrokerEvaluation(csv).map((p) => `${p.year}-${p.licenseNo}`)).toEqual(['2024-7', '2023-7']);
+    const repeated = `${EVAL_HEADER}\n113,7,甲公司,臺北市,路一,1,1,1,1,4,N,N\n113,0007,甲公司,臺北市,路一,9,9,9,9,36,N,N\n`;
+    expect(() => parseLaborBrokerEvaluation(repeated)).toThrow(/113 年許可證號 7 重複出現/);
+  });
+
+  it('throws on an unreadable ROC year', () => {
+    expect(() => parseLaborBrokerEvaluation(`${EVAL_HEADER}\n一一三,7,甲,臺北市,路一,1,1,1,1,4,N,N\n`)).toThrow(/無法解析的民國年度「一一三」/);
+  });
+
+  it('throws on a Y/N flag that is neither Y nor N, or a score that is not a number', () => {
+    expect(() => parseLaborBrokerEvaluation(`${EVAL_HEADER}\n113,7,甲,臺北市,路一,1,1,1,1,4,,N\n`)).toThrow(/預期 Y／N/);
+    expect(() => parseLaborBrokerEvaluation(`${EVAL_HEADER}\n113,7,甲,臺北市,路一,1,--,1,1,4,N,N\n`)).toThrow(/違規處分.*無法解析的數字/);
   });
 
   it('throws when the header changes', () => {

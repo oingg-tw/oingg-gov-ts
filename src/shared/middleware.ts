@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'ultimate-express';
 import { timingSafeEqual } from 'crypto';
-import { stripQuotes } from '@/shared/config';
+import { readCleanEnv } from '@/shared/config';
 
 /**
  * timingSafeEqual 要求兩個 buffer 等長，否則直接 throw；長度不同本身就代表密鑰不對，
@@ -24,11 +24,17 @@ function safeSecretEquals(a: string, b: string): boolean {
  * If the secret is missing or invalid, it sends a 401 Unauthorized response.
  * If the `TASK_SECRET` environment variable is not set, it sends a 500 Server Error.
  *
- * （跟 oingg-twse-ts 的 requireTaskSecret 是同一套驗證過的實作：stripQuotes + fail-closed 500 +
- * timingSafeEqual，見 oingg-conductor-ts 的 docs/conventions.md「TASK_SECRET」一節。）
+ * （fail-closed 500 + timingSafeEqual 跟 oingg-twse-ts 的 requireTaskSecret 同一套，見 oingg-conductor-ts
+ * 的 docs/conventions.md「TASK_SECRET」一節；2026-10-29 起值髒就 500，不再像 twse 那樣去引號，見 readCleanEnv。）
  */
 export const requireTaskSecret = (req: Request, res: Response, next: NextFunction) => {
-  const expectedSecret = stripQuotes(process.env.TASK_SECRET); // 每次請求即時讀取，不快取
+  let expectedSecret: string | undefined;
+  try {
+    expectedSecret = readCleanEnv('TASK_SECRET'); // 每次請求即時讀取，不快取
+  } catch (err) {
+    console.error((err as Error).message); // errorHandler 不寫 log，這裡不記的話 Cloud Logging 只看得到 500
+    return res.status(500).json({ message: 'Server configuration error: Task secret is malformed.' });
+  }
 
   if (!expectedSecret) {
     console.error('TASK_SECRET environment variable is not set. Please configure it.');

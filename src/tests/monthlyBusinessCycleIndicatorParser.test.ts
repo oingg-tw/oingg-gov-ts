@@ -41,9 +41,10 @@ describe('parseMonthlyBusinessCycleIndicator', () => {
     expect(() => parseMonthlyBusinessCycleIndicator(csv)).toThrow(/表頭欄位/);
   });
 
-  it('skips a row with a malformed Date field', () => {
+  it('throws on a malformed Date field or the wrong field count', () => {
     const csv = `${HEADER}\nnot-a-date,1,2,3,4,5,6,7,紅`;
-    expect(parseMonthlyBusinessCycleIndicator(csv)).toEqual([]);
+    expect(() => parseMonthlyBusinessCycleIndicator(csv)).toThrow(/無法解析的年月/);
+    expect(() => parseMonthlyBusinessCycleIndicator(`${HEADER}\n202601,1,2`)).toThrow(/3 欄（預期 9）/);
   });
 
   it('parses multiple rows', () => {

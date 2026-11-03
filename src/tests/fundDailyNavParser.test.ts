@@ -48,9 +48,10 @@ describe('parseFundDailyNav', () => {
     expect(points.map((p) => p.beneficiaryCode)).toEqual(['T0138A', 'T0362G']);
   });
 
-  it('skips a row with a malformed date field', () => {
+  it('throws on a malformed date field or the wrong field count', () => {
     const csv = `${HEADER}\nnot-a-date,A0001,兆豐投信,00512527,DIE02,某基金,12.8,0,0,AH22,TWD,00957B`;
-    expect(parseFundDailyNav(csv)).toEqual([]);
+    expect(() => parseFundDailyNav(csv)).toThrow(/無法解析的日期/);
+    expect(() => parseFundDailyNav(`${HEADER}\n20260909,A0001,兆豐投信`)).toThrow(/3 欄（預期 12）/);
   });
 
   it('throws when the header does not match (format changed)', () => {

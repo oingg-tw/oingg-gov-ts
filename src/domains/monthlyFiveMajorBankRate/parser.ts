@@ -1,5 +1,6 @@
 import type { CbcApiResponse } from '@/adapters/cbc';
 import type { MonthlyFiveMajorBankRatePoint } from '@/domains/monthlyFiveMajorBankRate/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // data.structure 裡的欄位顯示名稱（2026-10-07 用真實回應核對過，整份只有這三欄）。用名稱比對找索引、
 // 不寫死數字位置——CBC 官方文件沒承諾欄位順序不變，用名稱比對不會因為表格改版而悄悄抓錯欄。
@@ -45,10 +46,9 @@ export const parseMonthlyFiveMajorBankRate = (raw: CbcApiResponse): MonthlyFiveM
     const values = {} as Record<keyof typeof COLUMN_NAMES, number>;
     let usable = true;
     for (const field of Object.keys(COLUMN_NAMES) as (keyof typeof COLUMN_NAMES)[]) {
-      const rawValue = row[indexes[field] + 1]; // +1：row[0] 是期間字串，不是資料欄
-      if (typeof rawValue !== 'string' || rawValue === '-') { usable = false; break; } // "-" 是 CBC 的缺值標記
-      const value = Number(rawValue);
-      if (Number.isNaN(value)) { usable = false; break; }
+      // +1：row[0] 是期間字串，不是資料欄；"-" 是 CBC 的缺值標記
+      const value = parseSourceNumber(row[indexes[field] + 1], ['-'], `CBC 五大銀行利率 ${period} ${field}`);
+      if (value === null) { usable = false; break; }
       values[field] = value;
     }
     if (!usable) continue;

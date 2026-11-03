@@ -16,7 +16,7 @@ export interface IngestMonthlyCpiResult {
   error?: string;
 }
 
-// 跟 govBondYield10y 同樣的道理：analysis-ts 只認 export.ingestion_runs 裡 status='success' 的紀錄，
+// 跟 govBondYield10y 同樣的道理：下游約定只認 export.ingestion_runs 裡 status='success' 的紀錄，
 // 這是輔助性記帳動作，失敗不能讓主要 ingest 結果跟著失敗。
 const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyCpiPoint[]): Promise<void> => {
   try {
@@ -30,7 +30,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyC
       data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status },
     });
   } catch (error) {
-    console.error('Failed to record ingestion run for analysis-ts export contract:', error);
+    console.error('Failed to record export.ingestion_runs:', error);
   }
 };
 

@@ -1,14 +1,8 @@
 import type { FundDailyNavPoint } from '@/domains/fundDailyNav/types';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 已用真實檔案核對過（2026-09-11）：UTF-8 with BOM、12 欄、無雙引號跳脫需求。
 const HEADER = '日期,會員代號,公司名稱,基金統編,基金代號,基金名稱,基金淨值,漲跌,漲跌幅,類型代號,幣別,受益憑證代號';
-
-const toNullableNumber = (raw: string): number | null => {
-  const trimmed = raw.trim();
-  if (trimmed === '' || trimmed === '-') return null;
-  const value = Number(trimmed);
-  return Number.isNaN(value) ? null : value;
-};
 
 export const parseFundDailyNav = (csv: string): FundDailyNavPoint[] => {
   const lines = csv.split(/\r?\n/).filter((line) => line.trim() !== '');
@@ -20,15 +14,16 @@ export const parseFundDailyNav = (csv: string): FundDailyNavPoint[] => {
   const points: FundDailyNavPoint[] = [];
   for (const line of lines.slice(1)) {
     const fields = line.split(',');
-    if (fields.length !== 12) continue; // 格式不符的列，跳過而不是猜
+    if (fields.length !== 12) throw new Error(`SITCA 每日淨值有一列是 ${fields.length} 欄（預期 12），來源格式可能已變更：「${line.slice(0, 80)}」`);
 
     const dateRaw = fields[0] ?? '';
     const match = dateRaw.match(/^(\d{4})(\d{2})(\d{2})$/);
-    if (!match) continue;
+    if (!match) throw new Error(`SITCA 每日淨值：無法解析的日期「${dateRaw}」（預期西元 YYYYMMDD），來源格式可能已變更。`);
 
     const beneficiaryCode = (fields[11] ?? '').trim();
     if (beneficiaryCode === '') continue; // 沒有可靠唯一鍵的列跳過，不勉強拼一個假的鍵
 
+    const num = (raw: string | undefined, field: string) => parseSourceNumber(raw, ['', '-'], `SITCA 每日淨值 ${dateRaw} ${beneficiaryCode} ${field}`);
     points.push({
       tradeDate: new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))),
       memberCode: fields[1] ?? '',
@@ -36,9 +31,9 @@ export const parseFundDailyNav = (csv: string): FundDailyNavPoint[] => {
       fundTaxId: fields[3] ?? '',
       fundCode: fields[4] ?? '',
       fundName: fields[5] ?? '',
-      navValue: toNullableNumber(fields[6] ?? ''),
-      changeValue: toNullableNumber(fields[7] ?? ''),
-      changePercent: toNullableNumber(fields[8] ?? ''),
+      navValue: num(fields[6], '基金淨值'),
+      changeValue: num(fields[7], '漲跌'),
+      changePercent: num(fields[8], '漲跌幅'),
       typeCode: fields[9] ?? '',
       currency: fields[10] ?? '',
       beneficiaryCode,
