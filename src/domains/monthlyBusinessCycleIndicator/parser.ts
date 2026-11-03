@@ -24,11 +24,11 @@ export const parseMonthlyBusinessCycleIndicator = (csv: string): MonthlyBusiness
   const points: MonthlyBusinessCycleIndicatorPoint[] = [];
   for (const line of lines.slice(1)) {
     const fields = line.split(',');
-    if (fields.length !== 9) continue; // 格式不符的列（理論上不該出現），跳過而不是猜
+    if (fields.length !== 9) throw new Error(`國發會景氣指標與燈號有一列是 ${fields.length} 欄（預期 9），來源格式可能已變更：「${line.slice(0, 80)}」`);
 
     const dateField = fields[0] ?? '';
     const match = dateField.match(/^(\d{4})(\d{2})$/);
-    if (!match) continue;
+    if (!match) throw new Error(`國發會景氣指標與燈號：無法解析的年月「${dateField}」（預期西元 YYYYMM），來源格式可能已變更。`);
 
     points.push({
       year: Number(match[1]),

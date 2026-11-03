@@ -32,7 +32,7 @@ export const parseQuarterlyGdp = (xml: string): QuarterlyGdpPoint[] => {
     if (!match) continue;
 
     const category = CATEGORY_MAP[obs.item];
-    if (!category) continue;
+    if (!category) throw new Error(`主計總處 GDP 出現對照表以外的項目「${obs.item}」，官方可能改了項目名稱。`);
 
     const year = Number(match[1]);
     const quarter = Number(match[2]);

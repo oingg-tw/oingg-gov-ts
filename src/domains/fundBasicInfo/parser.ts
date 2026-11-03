@@ -27,11 +27,11 @@ export const parseFundBasicInfo = (csv: string): FundBasicInfoPoint[] => {
   const points: FundBasicInfoPoint[] = [];
   for (const line of lines.slice(1)) {
     const fields = line.split(',');
-    if (fields.length !== 16) continue; // 格式不符的列，跳過而不是猜
+    if (fields.length !== 16) throw new Error(`SITCA 境內基金基本資料有一列是 ${fields.length} 欄（預期 16），來源格式可能已變更：「${line.slice(0, 80)}」`);
 
     const yearMonth = fields[0] ?? '';
     const match = yearMonth.match(/^(\d{4})(\d{2})$/);
-    if (!match) continue;
+    if (!match) throw new Error(`SITCA 境內基金基本資料：無法解析的年月「${yearMonth}」（預期西元 YYYYMM），來源格式可能已變更。`);
 
     // 實測發現有極少數列（4433 筆裡 1 筆）ISIN Code 是空的——這種列沒有可靠的唯一鍵可用，
     // 跳過不收，不勉強拼一個假的鍵。

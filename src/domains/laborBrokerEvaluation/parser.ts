@@ -25,19 +25,19 @@ export const parseLaborBrokerEvaluation = (csv: string): LaborBrokerEvaluationPo
   const seen = new Set<string>();
   for (const line of lines.slice(1)) {
     const f = line.split(',');
-    if (f.length !== 12) continue;
+    if (f.length !== 12) throw new Error(`勞動部評鑑結果有一列是 ${f.length} 欄（預期 12），來源格式可能已變更：「${line.slice(0, 80)}」`);
 
     // 原始年度是民國年（108/109/111/112/113——110 年沒辦評鑑，資料本來就跳號）。這個 repo 其他
     // domain 一律存西元年，這裡跟著轉，不要讓下游還得自己判斷是哪種紀年。
     const rocYear = Number((f[0] ?? '').trim());
-    if (!Number.isInteger(rocYear) || rocYear < 1 || rocYear > 200) continue;
+    if (!Number.isInteger(rocYear) || rocYear < 1 || rocYear > 200) throw new Error(`勞動部評鑑結果：無法解析的民國年度「${f[0]}」，來源格式可能已變更。`);
     const year = rocYear + 1911;
 
     const licenseNo = normalizeLicenseNo((f[1] ?? '').trim());
-    if (licenseNo === '') continue;
+    if (licenseNo === '') throw new Error(`勞動部評鑑結果 ${rocYear} 年有一列沒有許可證號：「${line.slice(0, 80)}」`);
 
     const key = `${year}-${licenseNo}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) throw new Error(`勞動部評鑑結果 ${rocYear} 年許可證號 ${licenseNo} 重複出現，不知道該留哪一筆。`);
     seen.add(key);
 
     const at = `勞動部評鑑結果 ${rocYear} 年 ${licenseNo}`;

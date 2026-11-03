@@ -64,9 +64,9 @@ describe('parseFundBasicInfo', () => {
     expect(() => parseFundBasicInfo(row('20200101', '台幣', '1000元', '(AA1) 國內投資股票型'))).toThrow(/無法解析的數字/);
   });
 
-  it('skips a row with a malformed year-month field', () => {
+  it('throws on a malformed year-month field', () => {
     const csv = `${HEADER}\nnot-a-yearmonth,某投信,某基金,12345678,20200101,20260731,台幣,100,100,(AA1) 國內投資股票型,國內,不配息,TW0000000000,保管銀行,,TWD`;
-    expect(parseFundBasicInfo(csv)).toEqual([]);
+    expect(() => parseFundBasicInfo(csv)).toThrow(/無法解析的年月/);
   });
 
   it('throws when the header does not match (format changed)', () => {
@@ -74,8 +74,8 @@ describe('parseFundBasicInfo', () => {
     expect(() => parseFundBasicInfo(csv)).toThrow(/表頭欄位/);
   });
 
-  it('skips a row with the wrong field count', () => {
+  it('throws on a row with the wrong field count', () => {
     const csv = `${HEADER}\n202607,too,few,fields`;
-    expect(parseFundBasicInfo(csv)).toEqual([]);
+    expect(() => parseFundBasicInfo(csv)).toThrow(/4 欄（預期 16）/);
   });
 });

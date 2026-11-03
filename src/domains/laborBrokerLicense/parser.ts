@@ -13,6 +13,16 @@ const toIntOrNull = (raw: string | undefined, field: string): number | null => {
   return n;
 };
 
+// 統一編號是手填欄位：實測（2026-11-03，4983 列）有 93 列空白、10 列單一字元佔位（X、Y、y、ｎ）、
+// 2 列位數不足的數字（37999、7058779）、1 列 00000000，都當成沒有統編存 null。其他寫法（例如加了
+// 分隔號）丟錯——之前是「不是 8 碼就存 null」，來源改格式的話整欄會安靜變成 null。
+const toTaxId = (raw: string | undefined, field: string): string | null => {
+  const v = (raw ?? '').trim();
+  if (/^\d{8}$/.test(v) && !/^0+$/.test(v)) return v;
+  if (v.length <= 1 || /^\d{1,8}$/.test(v)) return null;
+  throw new Error(`${field}：無法解析的統一編號「${raw}」，來源格式可能已變更。`);
+};
+
 const toNullableString = (raw: string | undefined): string | null => {
   const v = (raw ?? '').trim();
   return v === '' ? null : v;
@@ -29,15 +39,14 @@ export const parseLaborBrokerLicense = (csv: string): LaborBrokerLicensePoint[] 
   const seen = new Set<string>();
   for (const line of lines.slice(1)) {
     const f = line.split(',');
-    if (f.length !== 15) continue; // 欄位數不符的列跳過而不是猜——實測全檔都是 15 欄
+    if (f.length !== 15) throw new Error(`勞動部許可名冊有一列是 ${f.length} 欄（預期 15），來源格式可能已變更：「${line.slice(0, 80)}」`);
 
     const rawLicenseNo = (f[0] ?? '').trim();
-    if (rawLicenseNo === '') continue;
+    if (rawLicenseNo === '') throw new Error(`勞動部許可名冊有一列沒有許可證號：「${line.slice(0, 80)}」`);
     const licenseNo = normalizeLicenseNo(rawLicenseNo);
-    if (seen.has(licenseNo)) continue; // 防衛：同一許可證號重複出現時只留第一筆
+    if (seen.has(licenseNo)) throw new Error(`勞動部許可名冊的許可證號 ${rawLicenseNo} 重複出現，不知道該留哪一筆。`);
     seen.add(licenseNo);
 
-    const rawTaxId = (f[5] ?? '').trim();
     // 日期欄位都是西元 8 碼；空字串代表「沒有這個狀態」（沒停業、沒廢止），存 null
     const at = `勞動部許可名冊 ${rawLicenseNo}`;
     const date = (i: number, field: string) => parseYmdDate(f[i], `${at} ${field}`);
@@ -49,7 +58,7 @@ export const parseLaborBrokerLicense = (csv: string): LaborBrokerLicensePoint[] 
       address: toNullableString(f[2]),
       phone: toNullableString(f[3]),
       responsiblePerson: toNullableString(f[4]),
-      taxId: /^\d{8}$/.test(rawTaxId) ? rawTaxId : null,
+      taxId: toTaxId(f[5], `${at} 公司統一編號`),
       professionalStaffCount: toIntOrNull(f[6], `${at} 專業人員人數`),
       staffCount: toIntOrNull(f[7], `${at} 從業人員人數`),
       licenseStartDate: date(8, '許可證起始日'),

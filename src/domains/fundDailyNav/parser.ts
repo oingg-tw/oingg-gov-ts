@@ -14,11 +14,11 @@ export const parseFundDailyNav = (csv: string): FundDailyNavPoint[] => {
   const points: FundDailyNavPoint[] = [];
   for (const line of lines.slice(1)) {
     const fields = line.split(',');
-    if (fields.length !== 12) continue; // 格式不符的列，跳過而不是猜
+    if (fields.length !== 12) throw new Error(`SITCA 每日淨值有一列是 ${fields.length} 欄（預期 12），來源格式可能已變更：「${line.slice(0, 80)}」`);
 
     const dateRaw = fields[0] ?? '';
     const match = dateRaw.match(/^(\d{4})(\d{2})(\d{2})$/);
-    if (!match) continue;
+    if (!match) throw new Error(`SITCA 每日淨值：無法解析的日期「${dateRaw}」（預期西元 YYYYMMDD），來源格式可能已變更。`);
 
     const beneficiaryCode = (fields[11] ?? '').trim();
     if (beneficiaryCode === '') continue; // 沒有可靠唯一鍵的列跳過，不勉強拼一個假的鍵

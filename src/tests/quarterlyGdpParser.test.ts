@@ -35,9 +35,9 @@ describe('parseQuarterlyGdp', () => {
     expect(parseQuarterlyGdp(xml)).toEqual([]);
   });
 
-  it('skips an unrecognized Item string instead of guessing a category', () => {
+  it('throws on an unrecognized Item string instead of guessing or dropping it', () => {
     const xml = obs('未知項目(百分點)', '1981Q1', 'Q', '原始值', '7.19');
-    expect(parseQuarterlyGdp(xml)).toEqual([]);
+    expect(() => parseQuarterlyGdp(xml)).toThrow(/對照表以外的項目「未知項目\(百分點\)」/);
   });
 
   it('treats an empty Item_VALUE as null, not zero', () => {
