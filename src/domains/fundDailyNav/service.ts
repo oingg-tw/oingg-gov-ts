@@ -5,8 +5,10 @@ import { parseFundDailyNav } from '@/domains/fundDailyNav/parser';
 import type { FundDailyNavPoint } from '@/domains/fundDailyNav/types';
 
 // data.gov.tw 資料集 11109，固定路徑 CSV，無查詢參數。已用真實檔案核對過：單次回應含 2 個交易日
-// （滾動窗口，不是只有最新一天），下次 ingest 會有 1 天重疊——用 (trade_date, beneficiary_code)
-// 唯一約束處理重疊，不會重複寫入。
+// （滾動窗口，不是只有最新一天）——大多數基金是前一營業日的淨值，約 490 支是當天就公布的，所以某天要等
+// 下一個營業日的檔進來才齊（週五的到週一）。週末的檔只有約 36 列、日期是週五、全是已寫入的列，所以
+// ingestion_runs 週末那筆會是「週五、36 列」，不代表週五只有這些（2026-11 實測）。下次 ingest 會有
+// 1 天重疊——用 (trade_date, beneficiary_code) 唯一約束處理重疊，不會重複寫入。
 const FUND_DAILY_NAV_CSV_URL = 'https://www.sitca.org.tw/MemberK0000/F/03/nav.csv';
 const EXPORT_DATASET = 'v_fund_daily_navs'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
