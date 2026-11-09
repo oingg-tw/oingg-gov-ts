@@ -1,0 +1,27 @@
+{
+  "displayName": "gov-ts scheduler attempt failed (401/403/429/timeout/5xx)",
+  "documentation": {
+    "content": "Cloud Scheduler 的某一次嘗試失敗了。Cloud Scheduler 每次嘗試結束都寫一筆 AttemptFinished log，失敗的是 ERROR 等級，成功的是 INFO。\n\n**為什麼另外要這條**：`gov-ts ingest 5xx` 那條只看 Cloud Run 的 5xx。請求根本沒進到程式、或被程式用 4xx 擋掉，Cloud Run 就沒有 5xx，那條不會響。例如：\n- 401：Cloud Scheduler 帶的 x-task-secret 跟 Cloud Run 的 TASK_SECRET 對不上（只換了其中一邊）\n- 403：gov-scheduler-invoker 被拿掉 run.invoker\n- 429：撞到 ingestRateLimit（2026-10-21 us-policy-rate 的一次重試就是 429，那一次本身不會讓 5xx 那條響）\n- DEADLINE_EXCEEDED：超過 attemptDeadline\n5xx 也會觸發這條，所以 5xx 會收到兩封信，這是預期的。\n\n**處理步驟**：\n1. 信裡的 job_id、status 就是哪支排程、什麼狀態碼；Cloud Logging 查 `resource.type=\"cloud_scheduler_job\" AND severity>=ERROR` 看 jsonPayload.status 和 debugInfo\n2. 401 先比對 Secret Manager 的 gov-task-secret 跟排程的 header（`pnpm scheduler:check`）；403 看 Cloud Run 服務的 IAM\n3. **fund_daily_nav 例外**：SITCA 的 nav.csv 只有 2 個交易日的滾動窗口，連續漏兩個營業日就是永久缺口，要當天處理。",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Cloud Scheduler attempt finished with an error",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_scheduler_job\" AND severity>=ERROR",
+        "labelExtractors": {
+          "job_id": "EXTRACT(resource.labels.job_id)",
+          "status": "EXTRACT(httpRequest.status)"
+        }
+      }
+    }
+  ],
+  "combiner": "OR",
+  "alertStrategy": {
+    "notificationRateLimit": {
+      "period": "3600s"
+    },
+    "autoClose": "3600s"
+  },
+  "enabled": true
+}

@@ -56,6 +56,10 @@ steps:
       # maxScale 是 20，近 30 天一個 revision 用過 18 台）。流量只有錯開時間的排程 ingest，一台夠。
       - --max-instances=1
       - --no-allow-unauthenticated
+      # 執行身分只能讀那兩個 secret、寫 log（2026-11-09）：原本沿用預設 compute 服務帳號，帶著 run.admin、
+      # 專案層級 iam.serviceAccountUser 和 artifactregistry.writer，程式被打穿就能重新部署、冒用專案裡的
+      # 任何服務帳號。程式本身不呼叫任何 GCP API。
+      - --service-account=gov-ts-runtime@$PROJECT_ID.iam.gserviceaccount.com
       # 那幾個跑很久的 ingest 端點（refresh-tracked 實測約 17 分鐘、company-industry-classification
       # 要下載 322MB）遠超 Cloud Run 預設的 300 秒逾時，設到上限 3600 秒。Request-based billing
       # （預設、沒有 --no-cpu-throttling）就夠：這個服務沒有請求之外還需要跑的背景工作。
