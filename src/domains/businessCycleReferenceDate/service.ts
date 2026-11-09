@@ -19,7 +19,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: Business
       .flatMap((p) => [p.troughStart, p.peak, p.troughEnd])
       .reduce<Date | null>((acc, d) => (d && (!acc || d > acc) ? d : acc), null);
     await prisma.ingestionRun.create({
-      data: { dataset: EXPORT_DATASET, dataDate: latest ?? new Date(), rowCount: points.length, status },
+      data: { dataset: EXPORT_DATASET, dataDate: latest, rowCount: points.length, status },
     });
   } catch (error) {
     console.error('Failed to record export.ingestion_runs:', error);

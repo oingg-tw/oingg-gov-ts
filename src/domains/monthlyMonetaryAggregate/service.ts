@@ -22,7 +22,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyM
       if (!acc || p.year > acc.year || (p.year === acc.year && p.month > acc.month)) return { year: p.year, month: p.month };
       return acc;
     }, null);
-    const dataDate = latest ? new Date(Date.UTC(latest.year, latest.month - 1, 1)) : new Date();
+    const dataDate = latest ? new Date(Date.UTC(latest.year, latest.month - 1, 1)) : null;
     await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status } });
   } catch (error) {
     console.error('Failed to record export.ingestion_runs:', error);

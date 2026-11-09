@@ -21,7 +21,7 @@ const recordIngestionRun = async (
       if (!acc || p.year > acc.year || (p.year === acc.year && p.quarter > acc.quarter)) return { year: p.year, quarter: p.quarter };
       return acc;
     }, null);
-    const dataDate = latest ? new Date(Date.UTC(latest.year, (latest.quarter - 1) * 3, 1)) : new Date();
+    const dataDate = latest ? new Date(Date.UTC(latest.year, (latest.quarter - 1) * 3, 1)) : null;
     await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status, sourceLastModified } });
   } catch (error) {
     console.error('Failed to record export.ingestion_runs:', error);

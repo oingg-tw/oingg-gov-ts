@@ -22,7 +22,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: CbcPolic
   try {
     const latest = points.reduce<Date | null>((acc, p) => (!acc || p.effectiveDate > acc ? p.effectiveDate : acc), null);
     await prisma.ingestionRun.create({
-      data: { dataset: EXPORT_DATASET, dataDate: latest ?? new Date(), rowCount: points.length, status },
+      data: { dataset: EXPORT_DATASET, dataDate: latest, rowCount: points.length, status },
     });
   } catch (error) {
     console.error('Failed to record export.ingestion_runs:', error);

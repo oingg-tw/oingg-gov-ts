@@ -14,7 +14,7 @@ export interface IngestLaborBrokerEvaluationResult {
 const recordIngestionRun = async (status: 'success' | 'failed', points: LaborBrokerEvaluationPoint[], sourceLastModified: Date | null): Promise<void> => {
   try {
     const latestYear = points.reduce<number | null>((acc, p) => (!acc || p.year > acc ? p.year : acc), null);
-    const dataDate = latestYear ? new Date(Date.UTC(latestYear, 0, 1)) : new Date();
+    const dataDate = latestYear ? new Date(Date.UTC(latestYear, 0, 1)) : null;
     await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status, sourceLastModified } });
   } catch (error) {
     console.error('Failed to record export.ingestion_runs:', error);
