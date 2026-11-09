@@ -151,14 +151,30 @@ attempt that OOMs, followed by a retry that succeeds in a fresh container, leave
 a `success` row. oingg-sitca-ts OOMed daily for five days in September 2026 with a
 table that looked clean throughout.
 
-The one place a failed first attempt shows up is Cloud Run's 5xx request count. Since
-every `/api/ingest/*` route is reachable only by Cloud Scheduler with an OIDC token,
-any 5xx means a scheduled job failed.
+A failed first attempt shows up in two places: Cloud Run's 5xx request count, and
+Cloud Scheduler's own `AttemptFinished` log, which is `ERROR` for every attempt that
+did not get a 2xx. Every `/api/ingest/*` route is reachable only by Cloud Scheduler
+with an OIDC token, so any 5xx means a scheduled job failed — but a request turned away
+with a 4xx never 5xxs: a 401 when the `x-task-secret` header and `TASK_SECRET`
+disagree, a 403 when `gov-scheduler-invoker` loses `run.invoker`, a 429 from the rate
+limiter (one `us-policy-rate` retry on 2026-10-21).
 
-`scripts/alert-policy-ingest-failures.json` holds that policy. **It is applied**
-(2026-09-25) as `gov-ts ingest 5xx (Cloud Scheduler job failure)`, notifying
-`ian.chu@oingg.com` — the account this project deploys under, and the address already
-in `OUTBOUND_USER_AGENT`. The commands below recreate or update it:
+Three policies, all notifying `ian.chu@oingg.com` — the account this project deploys
+under, and the address already in `OUTBOUND_USER_AGENT`:
+
+- `scripts/alert-policy-ingest-failures.json` — `gov-ts ingest 5xx (Cloud Scheduler job
+  failure)`, the Cloud Run 5xx count. Applied 2026-09-25.
+- `scripts/alert-policy-scheduler-attempt-failures.json` — any Cloud Scheduler attempt
+  that ends in an error, 4xx included. A 5xx sends both emails. Applied 2026-11-09.
+- `scripts/alert-policy-fund-daily-nav-absent.json` — `fund-daily-nav-daily` has had no
+  HTTP 200 attempt in 25 hours, so a missed 22:02 run alerts around 23:02 the next day.
+  nav.csv holds two trading days, so this is the one job where "it never ran" loses
+  data for good. It is PromQL because a metric-absence condition tops out at 23.5 hours,
+  shorter than a daily job's gap; and 25 hours because PromQL alerts on log-based
+  metrics cannot look back further than 1d1h. Applied 2026-11-09.
+
+The commands below recreate or update them (the `create` command takes any of the three
+files):
 
 ```
 # 1. Create an email notification channel (once per project)
@@ -179,13 +195,14 @@ gcloud alpha monitoring policies update <policy-id> --project=oingg-gov \
 Without `--notification-channels` the policy still fires but only into the Cloud
 Monitoring console, which nobody looks at — that is the same blind spot in a new place.
 
-Two gaps this does **not** cover:
+Two gaps these do **not** cover:
 
 - **A job that returns 200 while writing stale data.** The source can serve last
   month's file with a 200; nothing 5xxs. `export.ingestion_runs.data_date` is where
   that shows, but it needs a query, not a Cloud Monitoring metric.
-- **A job that stopped being scheduled at all.** No requests means no 5xx. `pnpm
-  scheduler:check` compares intent against Cloud Scheduler and is the thing to run.
+- **A job other than fund-daily-nav that stopped being scheduled at all.** No requests
+  means nothing to alert on. Those sources can be re-run any time, so `pnpm
+  scheduler:check`, which compares intent against Cloud Scheduler, is the thing to run.
 
 ## Production memory headroom
 

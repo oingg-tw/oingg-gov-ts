@@ -1,0 +1,22 @@
+{
+  "displayName": "gov-ts fund-daily-nav no successful run in 25h",
+  "documentation": {
+    "content": "fund-daily-nav-daily 超過 25 小時沒有任何一次成功（HTTP 200）的排程嘗試。這支每天 22:02 跑，漏跑的話隔天大約 23:02 會響。\n\n**為什麼只盯這支**：其他來源每次都回傳整段歷史，晚幾天補跑就好；SITCA 的 nav.csv 只有 2 個交易日的滾動窗口，連續漏兩個營業日就是永久缺口。失敗會被 `gov-ts scheduler attempt failed` 抓到，這條抓的是「根本沒跑」：排程被暫停、刪掉、或改壞時間，這時候沒有任何請求，也就沒有任何錯誤可以告警。\n\n**為什麼用 PromQL、為什麼是 25 小時**：Cloud Monitoring 的 metric-absence 條件最長只能設 23.5 小時，比這支一天一次的間隔還短，會天天誤報；PromQL 的 absent_over_time 可以看更久，但 log-based metric 在 PromQL 告警裡最多回看 1d1h（API 實測，2026-11-09），所以是 25 小時。資料來自 log-based metric `scheduler_attempts`（Cloud Scheduler 的 AttemptFinished log，status 是 HTTP 狀態碼）。\n\n**處理步驟**：`gcloud scheduler jobs describe fund-daily-nav-daily --location asia-southeast1 --project oingg-gov` 看 state 和 schedule；`pnpm scheduler:check` 比對設定。",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "No HTTP 200 attempt for fund-daily-nav-daily in 25h",
+      "conditionPrometheusQueryLanguage": {
+        "query": "absent_over_time(logging_googleapis_com:user_scheduler_attempts{monitored_resource=\"cloud_scheduler_job\",job_id=\"fund-daily-nav-daily\",status=\"200\"}[25h])",
+        "duration": "0s",
+        "evaluationInterval": "300s"
+      }
+    }
+  ],
+  "combiner": "OR",
+  "alertStrategy": {
+    "autoClose": "86400s"
+  },
+  "enabled": true
+}
