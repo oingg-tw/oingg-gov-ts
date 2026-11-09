@@ -21,12 +21,12 @@ export interface IngestGovBondYield10yResult {
 const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyGovBondYield10yPoint[]): Promise<void> => {
   try {
     // dataDate 記這批資料實際涵蓋到的最新月份，不是「現在」——points 是 CBC 端點回應的全部歷史，
-    // 取其中最新的 year/month 就是這批資料的新鮮度；失敗時沒有可信的資料月份，退回今天的日期。
+    // 取其中最新的 year/month 就是這批資料的新鮮度；失敗時沒有可信的資料月份，記 null。
     const latest = points.reduce<{ year: number; month: number } | null>((acc, p) => {
       if (!acc || p.year > acc.year || (p.year === acc.year && p.month > acc.month)) return { year: p.year, month: p.month };
       return acc;
     }, null);
-    const dataDate = latest ? new Date(Date.UTC(latest.year, latest.month - 1, 1)) : new Date();
+    const dataDate = latest ? new Date(Date.UTC(latest.year, latest.month - 1, 1)) : null;
 
     await prisma.ingestionRun.create({
       data: { dataset: EXPORT_DATASET, dataDate, rowCount: points.length, status },

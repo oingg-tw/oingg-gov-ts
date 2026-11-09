@@ -13,10 +13,10 @@ export interface IngestLaborBrokerLicenseResult {
 
 const recordIngestionRun = async (status: 'success' | 'failed', points: LaborBrokerLicensePoint[], sourceLastModified: Date | null): Promise<void> => {
   try {
-    // 這份沒有資料期別，是「目前全部許可證」的現況快照，dataDate 記抓取日（同
+    // 這份沒有資料期別，是「目前全部許可證」的現況快照，成功時 dataDate 記抓取日、失敗記 null（同
     // laborBrokerTaxRegistration）。刻意不取「最新的許可證起始日」——許可證可以預先核發，那個值會是
     // 未來日期（2026-09-22 實測抓到 2026-10-13），讓下游的新鮮度判斷失真。
-    await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate: new Date(), rowCount: points.length, status, sourceLastModified } });
+    await prisma.ingestionRun.create({ data: { dataset: EXPORT_DATASET, dataDate: status === 'success' ? new Date() : null, rowCount: points.length, status, sourceLastModified } });
   } catch (error) {
     console.error('Failed to record export.ingestion_runs:', error);
   }

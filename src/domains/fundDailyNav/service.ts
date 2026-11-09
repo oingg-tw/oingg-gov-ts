@@ -28,7 +28,7 @@ const recordIngestionRun = async (
   try {
     const latest = points.reduce<Date | null>((acc, p) => (!acc || p.tradeDate > acc ? p.tradeDate : acc), null);
     await prisma.ingestionRun.create({
-      data: { dataset: EXPORT_DATASET, dataDate: latest ?? new Date(), rowCount: points.length, status, sourceLastModified },
+      data: { dataset: EXPORT_DATASET, dataDate: latest, rowCount: points.length, status, sourceLastModified },
     });
   } catch (error) {
     console.error('Failed to record export.ingestion_runs:', error);

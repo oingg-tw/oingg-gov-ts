@@ -468,15 +468,15 @@ model MonthlyBusinessCycleIndicator {
 /// 月資料，沒有自然的逐月分批單位（見 MonthlyGovBondYield10y 的註解）。dataDate 記這批資料實際涵蓋
 /// 到的最新月份（不是「今天」，是資料本身的最新業務日期），讓下游知道資料新鮮到哪個月。
 model IngestionRun {
-  runId       BigInt   @id @default(autoincrement()) @map("run_id")
+  runId       BigInt    @id @default(autoincrement()) @map("run_id")
   dataset     String // 對應 export schema 裡的哪個 view，例如 "monthly_gov_bond_yield_10y"
-  dataDate    DateTime @map("data_date") @db.Date // 這批資料涵蓋到的最新業務日期（不是 ingest 執行的時間）
+  dataDate    DateTime? @map("data_date") @db.Date // 這批資料涵蓋到的最新業務日期（不是 ingest 執行的時間）；失敗、沒抓到資料時是 null
   // completedAt 與 sourceLastModified 是「時間點」，所以存 TIMESTAMPTZ（twse-ts / tpex-ts / mops-ts
   // 的握手表也是，2026-10-08 核對）。不帶時區時，任何把 session TimeZone 設成 Asia/Taipei 的讀者
   // （BI 工具），或用原生 pg client 讀的人（pg 預設把 timestamp 當本地時間解析），讀到的時間點都會
   // 偏 8 小時。其他表的 createdAt/updatedAt 同樣理由，2026-11-03 起也是 TIMESTAMPTZ(3)。
-  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
-  rowCount    Int      @map("row_count")
+  completedAt DateTime  @default(now()) @map("completed_at") @db.Timestamptz(6)
+  rowCount    Int       @map("row_count")
   status      String // success | partial | failed
 
   // 來源檔案伺服器回應的 Last-Modified header（2026-09-11 因 fund_basic_info 新增）——這是「來源
