@@ -37,9 +37,9 @@ const recordIngestionRun = async (
   }
 };
 
-// 跟 quarterlyGdp 等 domain 一樣用整批寫入（見 quarterlyGdp/service.ts 的說明）。force 時整批刪除
-// 重建，不 force 時用 createMany({ skipDuplicates: true }) 讓 (year, month, isin_code) 的唯一約束
-// 處理「已存在就跳過」。
+// 跟 quarterlyGdp 等 domain 一樣用整批寫入（見 quarterlyGdp/service.ts 的說明）。force 時只刪這份檔案裡
+// 有的年月再重寫——來源只有當月快照，整表刪除會把來源補不回來的過去月份一起刪掉。不 force 時用
+// createMany({ skipDuplicates: true }) 讓 (year, month, isin_code) 的唯一約束處理「已存在就跳過」。
 export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasicInfoResult> => {
   let csv: string;
   let sourceLastModified: Date | null;
@@ -84,7 +84,11 @@ export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasi
   let fetchedCount: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.fundBasicInfo.deleteMany({}), prisma.fundBasicInfo.createMany({ data })], { timeout: 30000 });
+    const months = [...new Map(points.map((p) => [`${p.year}-${p.month}`, { year: p.year, month: p.month }])).values()];
+    await prisma.$transaction(
+      [prisma.fundBasicInfo.deleteMany({ where: { OR: months } }), prisma.fundBasicInfo.createMany({ data })],
+      { timeout: 30000 }
+    );
     fetchedCount = points.length;
     skipped = 0;
   } else {

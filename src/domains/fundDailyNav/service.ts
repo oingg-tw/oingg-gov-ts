@@ -35,9 +35,10 @@ const recordIngestionRun = async (
   }
 };
 
-// 跟其他新 domain 一樣用整批寫入（見 quarterlyGdp/service.ts 的說明）。force 時整批刪除重建，不
-// force 時用 createMany({ skipDuplicates: true }) 讓 (trade_date, beneficiary_code) 的唯一約束
-// 處理「已存在就跳過」（也順便處理了滾動窗口重疊的那 1 天）。
+// 跟其他新 domain 一樣用整批寫入（見 quarterlyGdp/service.ts 的說明）。force 時只刪這份檔案裡有的交易日
+// 再重寫——來源只有最近 2 個交易日，整表刪除會把來源補不回來的歷史一起刪掉。不 force 時用
+// createMany({ skipDuplicates: true }) 讓 (trade_date, beneficiary_code) 的唯一約束處理「已存在就跳過」
+// （也順便處理了滾動窗口重疊的那 1 天）。
 export const ingestFundDailyNav = async (force = false): Promise<IngestFundDailyNavResult> => {
   let csv: string;
   let sourceLastModified: Date | null;
@@ -76,7 +77,11 @@ export const ingestFundDailyNav = async (force = false): Promise<IngestFundDaily
   let fetchedCount: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.fundDailyNav.deleteMany({}), prisma.fundDailyNav.createMany({ data })], { timeout: 30000 });
+    const tradeDates = [...new Set(points.map((p) => p.tradeDate.getTime()))].map((t) => new Date(t));
+    await prisma.$transaction(
+      [prisma.fundDailyNav.deleteMany({ where: { tradeDate: { in: tradeDates } } }), prisma.fundDailyNav.createMany({ data })],
+      { timeout: 30000 }
+    );
     fetchedCount = points.length;
     skipped = 0;
   } else {
