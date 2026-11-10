@@ -504,9 +504,9 @@ model FundBasicInfo {
   year  Int
   month Int
 
-  companyName          String   @map("company_name") // 基金公司(投信)名稱
-  fundName             String   @map("fund_name")
-  fundTaxId            String   @map("fund_tax_id") // 統編
+  companyName          String    @map("company_name") // 基金公司(投信)名稱
+  fundName             String    @map("fund_name")
+  fundTaxId            String    @map("fund_tax_id") // 統編
   fundInceptionDate    DateTime? @map("fund_inception_date") @db.Date // 基金/級別成立日期
   fundSizeDate         DateTime? @map("fund_size_date") @db.Date // 基金規模日期
   fundSizeCurrency     String    @map("fund_size_currency") // ISO 4217（來源寫「台幣」，parser 對照轉換）
@@ -516,10 +516,10 @@ model FundBasicInfo {
   fundTypeName         String    @map("fund_type_name") // 例如 "跨國投資指數股票型_債券型"
   investmentRegion     String    @map("investment_region")
   dividendPolicy       String?   @map("dividend_policy") // 來源空白存 null
-  isinCode             String   @map("isin_code")
-  custodianDomestic    String?  @map("custodian_domestic")
-  custodianForeign     String?  @map("custodian_foreign")
-  denominationCurrency String   @map("denomination_currency")
+  isinCode             String    @map("isin_code")
+  custodianDomestic    String?   @map("custodian_domestic")
+  custodianForeign     String?   @map("custodian_foreign")
+  denominationCurrency String    @map("denomination_currency")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
