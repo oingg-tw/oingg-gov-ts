@@ -1,4 +1,5 @@
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
+import { fetchUpstream } from '@/shared/bronze';
 
 // 勞動部開放資料的 CSV 直連（apiservice.mol.gov.tw/OdService/download/<resourceId>）。每個資料集在
 // data.gov.tw 上掛的 CSV 下載連結就長這樣，不需要 API key；同一個資料集的 CSV/JSON/XML 各有一組不同
@@ -15,13 +16,13 @@ export interface MolCsvFetchResult {
 }
 
 export const fetchMolCsv = async (resourceId: string): Promise<MolCsvFetchResult> => {
-  const response = await fetch(`${MOL_CSV_BASE_URL}/${encodeURIComponent(resourceId)}`, {
+  const response = await fetchUpstream(`${MOL_CSV_BASE_URL}/${encodeURIComponent(resourceId)}`, 'csv', {
     headers: { 'User-Agent': OUTBOUND_USER_AGENT },
   });
   if (!response.ok) {
     throw new Error(`勞動部開放資料 CSV 下載失敗：HTTP ${response.status}（resourceId=${resourceId}）`);
   }
-  const content = (await response.text()).replace(/^﻿/, '');
+  const content = response.body.toString('utf8').replace(/^﻿/, '');
 
   const lastModifiedHeader = response.headers.get('last-modified');
   const lastModified = lastModifiedHeader ? new Date(lastModifiedHeader) : null;

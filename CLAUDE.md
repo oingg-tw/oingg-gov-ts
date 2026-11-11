@@ -11,4 +11,6 @@ PRD 上線（使用者 2026-11-11 定的）：
 - 改了解析讓存的值變了：上線前抽樣比對新舊值，寫出影響範圍（view、欄位、日期或期別、代號）；上線後把範圍通知數據中台（oingg-data-rust），由它決定要不要記規則變更，gov 不送規則變更紀錄。
 - 部署後第一輪跑完先自己核對（筆數、空值、跟上一輪的差異），再通知下游和管理站；「修好了」的通知要寫資料集和代號。不是每天跑的排程要手動觸發才有第一輪，觸發 PRD 匯入要問使用者。
 - 程式改壞可以先切流量回上一版、再回報使用者（使用者事先授權，只限切流量）：gcloud run services update-traffic oingg-gov-ts --region=asia-southeast1 --to-revisions=<上一版>=100。寫資料、觸發匯入、migration 照舊每次問。修好 push main 後，部署的 to-latest 步驟會把流量切回最新版。
-- 資料改壞用修好的版本重跑該資料集。平常只新增的來源要帶 force=true 才會蓋掉舊值；SITCA 兩支只能重做上游檔案裡還有的日期。ingestion_runs.revision 記了每次匯入是哪一版寫的，用來圈範圍。
+- 資料改壞用修好的版本重跑該資料集。平常只新增的來源要帶 force=true 才會蓋掉舊值。ingestion_runs.revision 記了每次匯入是哪一版寫的，用來圈範圍。
+
+銅層（使用者 2026-11-11 定的）：每次向上游抓的回應，不管成功失敗，都先原樣存進 GCS oingg-gov-bronze 再解析（src/shared/bronze.ts），只增不刪、長期保留，存不進去那次匯入就算失敗。ingestion_runs.raw_objects 記這次用了哪些檔。解析寫錯要重做時，用 scripts/replayIngest.ts 指定 job 和日期區間，從銅層重跑、同鍵覆寫，不連上游（對 PRD 跑就是觸發 PRD 匯入，要問使用者）。新加上游請求一律走 fetchUpstream／keepUpstream。目前接上的是 SITCA、勞動部、稅籍 5 支，其他 14 支 2026-11-12 接上；之前的 SITCA 資料只能重做上游檔案裡還有的日期。

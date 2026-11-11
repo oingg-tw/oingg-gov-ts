@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import prisma from '@/adapters/prisma/index';
 import { FIA_BUSINESS_TAX_REGISTRY_CSV_URL, parseFiaBusinessTaxRegistryLine } from '@/adapters/fia/client';
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
+import { fetchUpstream } from '@/shared/bronze';
 import { LABOR_BROKER_INDUSTRY_CODES, type LaborBrokerTaxRegistrationPoint } from '@/domains/laborBrokerTaxRegistration/types';
 
 const EXPORT_DATASET = 'v_labor_broker_tax_registrations'; // = export view 名（詞彙表：鍵跟著 view 改名）
@@ -35,8 +36,13 @@ const recordIngestionRun = async (status: 'success' | 'failed', rowCount: number
   }
 };
 
-// 串流全國營業稅籍登記檔（約 322MB、171 萬列），只留行業代號落在 LABOR_BROKER_INDUSTRY_CODES 的
-// 業者——逐行處理、不整份載進記憶體（322MB），
+function* slices(body: Buffer, size = 1024 * 1024): Generator<Buffer> {
+  for (let offset = 0; offset < body.length; offset += size) yield body.subarray(offset, offset + size);
+}
+
+// 全國營業稅籍登記檔（約 322MB、171 萬列）先整份下載、存進銅層（2026-11-11 起，見 shared/bronze.ts）再逐行解析，
+// 只留行業代號落在 LABOR_BROKER_INDUSTRY_CODES 的業者。檔案放在 Buffer（heap 外），用 slices 切成 1MB 餵 readline，
+// 不會變成一個 322MB 的字串撐爆 heap（--max-old-space-size=768）。
 // 差別是那邊用「統編白名單」過濾，這邊用「行業代號」過濾。
 //
 // 只收總公司列（總機構統一編號為空）：分支機構在這份檔案裡是獨立列、但查核業者合不合法看的是法人
@@ -48,11 +54,11 @@ export const ingestLaborBrokerTaxRegistration = async (): Promise<IngestLaborBro
   const seen = new Set<string>();
 
   try {
-    const response = await fetch(FIA_BUSINESS_TAX_REGISTRY_CSV_URL, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
-    if (!response.ok || !response.body) {
+    const response = await fetchUpstream(FIA_BUSINESS_TAX_REGISTRY_CSV_URL, 'csv', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+    if (!response.ok) {
       throw new Error(`財政部稅籍登記檔下載失敗：HTTP ${response.status}`);
     }
-    const rl = createInterface({ input: Readable.fromWeb(response.body as never), crlfDelay: Infinity });
+    const rl = createInterface({ input: Readable.from(slices(response.body)), crlfDelay: Infinity });
 
     let isHeader = true;
     for await (const line of rl) {
