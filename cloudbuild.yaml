@@ -76,7 +76,8 @@ steps:
       # 768 + 2Gi 是 sitca-ts 實測穩定的組合，直接沿用。
       - --memory=2Gi
       - --set-secrets=DATABASE_URL=gov-database-url:latest,TASK_SECRET=gov-task-secret:latest
-      # BRONZE_BUCKET：每次抓到的原始回應存在這裡（shared/bronze.ts），正式環境沒設就整次匯入失敗。
+      # BRONZE_BUCKET：每次抓到的原始回應存在這裡（shared/bronze.ts）。沒設的話匯入照常，但每次都記
+      # [bronze-write-failed]，bronze_write_failures 告警會響。
       - --set-env-vars=NODE_ENV=production,NODE_OPTIONS=--max-old-space-size=768,BRONZE_BUCKET=oingg-gov-bronze
       - --quiet
 

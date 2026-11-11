@@ -206,24 +206,51 @@ Two gaps these do **not** cover:
 
 ## Raw responses (bronze layer)
 
-Every upstream response, failed ones included, is stored as-is in
-`gs://oingg-gov-bronze` before it is parsed (`src/shared/bronze.ts`). Objects are
-never overwritten or deleted. They move to Coldline after 30 days
-(`scripts/bronze-lifecycle.json`). If a response cannot be stored, the run fails.
+Every upstream response, failed ones included, is stored as-is before it is parsed
+(`src/shared/bronze.ts`), in the format the five upstream services share (bronze v1,
+2026-11-11). `BRONZE_BUCKET` picks the bucket:
 
-- Path: `<job>/<Taipei date>/<HHmmss>_<first 12 hex of sha256>.<ext>`, where `<job>`
-  is the `/api/ingest/<job>` route. The object metadata holds the URL, HTTP status,
-  sha256, revision and the upstream `Last-Modified`.
-- `export.ingestion_runs.raw_objects` lists the objects a run used.
-- POSTing an ingest route with `{ "replayRunId": <run_id>, "force": true }` re-runs
-  that run from its stored objects instead of the network.
-  `scripts/replayIngest.ts <job> <from> <to>` does this for a date range: every run
-  for the two SITCA snapshots, and only the latest run for the other sources, whose
-  files each hold the full history or the whole current state.
+- `gs://oingg-gov-bronze` for production. Objects are never overwritten or deleted and
+  stay in Standard storage.
+- `gs://oingg-gov-bronze-dev` for local runs that write DEV
+  (`scripts/bronze-dev-lifecycle.json` deletes objects after 30 days). Locally, set
+  `BRONZE_BUCKET=oingg-gov-bronze-dev` and `GCS_ACCESS_TOKEN=$(gcloud auth
+  print-access-token)`. Without a bucket, a local run stores nothing and warns.
 
-The runtime identity holds only `objectCreator` and `objectViewer` on this bucket, and
-writes use `x-goog-if-generation-match: 0`, so nothing in the service can replace a
-stored response.
+The format:
+
+- Path: `<host>/<endpoint path>/<Taipei date>/<HHmmssSSS>_<first 12 hex of sha256>.<ext>`.
+  The query string stays out of the path, so the six CBC datasets share
+  `cpx.cbc.gov.tw/API/DataAPI/Get/`. Percent-encoded path characters are decoded,
+  except wildcards and control characters.
+- Metadata: `source_url` (full URL), `method`, `http_status`, `fetched_at` (ISO 8601,
+  `+08:00`), `sha256`, `revision` (empty locally), plus `last_modified` and `etag`
+  when the upstream sends them.
+- `export.ingestion_runs.raw_objects` lists the `gs://` URLs a run used. This is the
+  only link from a dataset to its objects.
+
+A failed store does not stop the ingest. It logs an ERROR starting with
+`[bronze-write-failed]`, which the `bronze_write_failures` log metric counts per
+`dataset` (`scripts/log-metric-bronze-write-failures.yaml`).
+`scripts/alert-policy-bronze-write-failures.json` emails the same channel as the 5xx
+alert.
+
+Objects written before bronze v1 (2026-11-11, revisions 00042 and 00043) stay where
+they are. They use `<job>/<Taipei date>/<HHmmss>_<sha>.<ext>`, the metadata names
+`url`, `status` and `last-modified`, and bare paths in `raw_objects`. Replay reads
+both formats.
+
+POSTing an ingest route with `{ "replayRunId": <run_id>, "force": true }` re-runs that
+run from its stored objects instead of the network, and records a new
+`ingestion_runs` row pointing at the same objects. `scripts/replayIngest.ts <dataset>
+--from YYYY-MM-DD --to YYYY-MM-DD` lists the runs it would replay and only writes with
+`--apply`. It replays every run for the two SITCA snapshots, and only the latest run
+for the other sources, whose files each hold the full history or the whole current
+state.
+
+The runtime identity holds only `objectCreator` and `objectViewer` on the production
+bucket, and writes use `x-goog-if-generation-match: 0`, so nothing in the service can
+replace a stored response.
 
 ## Production memory headroom
 

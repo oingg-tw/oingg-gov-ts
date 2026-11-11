@@ -1,0 +1,13 @@
+name: bronze_write_failures
+description: 原始回應沒存進銅層的次數（src/shared/bronze.ts 記的 [bronze-write-failed] ERROR）。標籤 dataset 是 ingestion_runs.dataset（= export view 名）。管理站讀這個指標亮燈。
+filter: resource.type="cloud_run_revision" AND resource.labels.service_name="oingg-gov-ts" AND severity=ERROR AND jsonPayload.message:"[bronze-write-failed]"
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  labels:
+    - key: dataset
+      valueType: STRING
+      description: ingestion_runs.dataset（= export view 名）
+labelExtractors:
+  dataset: EXTRACT(jsonPayload.dataset)

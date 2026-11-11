@@ -5,7 +5,7 @@ import { parseCbcPolicyRate } from '@/domains/cbcPolicyRate/parser';
 import type { CbcPolicyRatePoint } from '@/domains/cbcPolicyRate/types';
 
 const ITEM_CODE = 'EG28D01en';
-const EXPORT_DATASET = 'v_cbc_policy_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
+export const EXPORT_DATASET = 'v_cbc_policy_rates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestCbcPolicyRateResult {
   success: boolean;

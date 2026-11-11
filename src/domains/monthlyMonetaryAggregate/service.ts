@@ -5,7 +5,7 @@ import { parseMonthlyMonetaryAggregate } from '@/domains/monthlyMonetaryAggregat
 import type { MonthlyMonetaryAggregatePoint } from '@/domains/monthlyMonetaryAggregate/types';
 
 const ITEM_CODE = 'EF15M01en';
-const EXPORT_DATASET = 'v_monthly_monetary_aggregates'; // = export view 名（詞彙表：鍵跟著 view 改名）
+export const EXPORT_DATASET = 'v_monthly_monetary_aggregates'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestMonthlyMonetaryAggregateResult {
   success: boolean;
