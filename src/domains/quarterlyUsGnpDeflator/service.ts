@@ -3,7 +3,7 @@ import { fetchFredSeriesCsv } from '@/adapters/fred/client';
 import { FRED_SERIES_ID, parseQuarterlyUsGnpDeflator } from '@/domains/quarterlyUsGnpDeflator/parser';
 import type { QuarterlyUsGnpDeflatorPoint } from '@/domains/quarterlyUsGnpDeflator/types';
 
-const EXPORT_DATASET = 'v_quarterly_us_gnp_deflators'; // = export view 名（詞彙表：鍵跟著 view 改名）
+export const EXPORT_DATASET = 'v_quarterly_us_gnp_deflators'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestQuarterlyUsGnpDeflatorResult {
   success: boolean;

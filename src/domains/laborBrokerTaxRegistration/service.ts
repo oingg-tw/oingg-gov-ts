@@ -6,7 +6,7 @@ import { OUTBOUND_USER_AGENT } from '@/shared/config';
 import { fetchUpstream } from '@/shared/bronze';
 import { LABOR_BROKER_INDUSTRY_CODES, type LaborBrokerTaxRegistrationPoint } from '@/domains/laborBrokerTaxRegistration/types';
 
-const EXPORT_DATASET = 'v_labor_broker_tax_registrations'; // = export view 名（詞彙表：鍵跟著 view 改名）
+export const EXPORT_DATASET = 'v_labor_broker_tax_registrations'; // = export view 名（詞彙表：鍵跟著 view 改名）
 // 前4碼-後2碼（例如 "2331-00"）——用亞洲水泥（統編 03244509）實測驗證過這個轉換規則跟真實資料
 // 對得起來（"233100" 對到 "2331-00" 水泥製造，符合實際主業）。
 //

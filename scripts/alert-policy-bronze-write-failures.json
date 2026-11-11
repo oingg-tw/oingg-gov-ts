@@ -1,0 +1,33 @@
+{
+  "displayName": "gov-ts bronze write failed",
+  "documentation": {
+    "content": "某次匯入的上游原始回應沒存進銅層（GCS oingg-gov-bronze）。照銅層 v1，寫不進 GCS 不擋匯入，資料照常寫進去了，但這次的原始回應沒留下，之後不能從銅層重跑這次匯入。\n\n**處理步驟**：\n1. Cloud Logging 查 `resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"oingg-gov-ts\" AND jsonPayload.message:\"[bronze-write-failed]\"`，看 jsonPayload.dataset、source_url、error\n2. 403：gov-ts-runtime 被拿掉 oingg-gov-bronze 的 objectCreator。沒設 BRONZE_BUCKET：看 cloudbuild.yaml 的 --set-env-vars\n3. 修好後，每次給整段歷史的來源下一次排程就會存到。SITCA 兩支的檔案只有最近 2 個交易日／當月，要當天補跑（觸發 PRD 匯入要問使用者）。",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "bronze_write_failures > 0",
+      "conditionThreshold": {
+        "filter": "resource.type = \"cloud_run_revision\" AND metric.type = \"logging.googleapis.com/user/bronze_write_failures\"",
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "60s",
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM"
+          }
+        ],
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "combiner": "OR",
+  "alertStrategy": {
+    "autoClose": "3600s"
+  },
+  "enabled": true
+}

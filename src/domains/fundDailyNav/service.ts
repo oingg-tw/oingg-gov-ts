@@ -10,7 +10,7 @@ import type { FundDailyNavPoint } from '@/domains/fundDailyNav/types';
 // ingestion_runs 週末那筆會是「週五、36 列」，不代表週五只有這些（2026-11 實測）。下次 ingest 會有
 // 1 天重疊——用 (trade_date, beneficiary_code) 唯一約束處理重疊，不會重複寫入。
 const FUND_DAILY_NAV_CSV_URL = 'https://www.sitca.org.tw/MemberK0000/F/03/nav.csv';
-const EXPORT_DATASET = 'v_fund_daily_navs'; // = export view 名（詞彙表：鍵跟著 view 改名）
+export const EXPORT_DATASET = 'v_fund_daily_navs'; // = export view 名（詞彙表：鍵跟著 view 改名）
 
 export interface IngestFundDailyNavResult {
   success: boolean;
