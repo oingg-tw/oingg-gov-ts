@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Delete everything else",
+    "action": { "type": "Delete" },
+    "condition": { "tagState": "any" }
+  },
+  {
+    "name": "Keep most recent 10",
+    "action": { "type": "Keep" },
+    "mostRecentVersions": { "keepCount": 10 }
+  },
+  {
+    "name": "Keep prd",
+    "action": { "type": "Keep" },
+    "condition": { "tagState": "tagged", "tagPrefixes": ["prd"] }
+  }
+]

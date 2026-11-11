@@ -8,11 +8,17 @@ import { config, readCleanEnv } from '@/shared/config';
 // 值髒的話在這裡丟錯，服務起不來，Cloud Run 會繼續用舊 revision。
 const adapter = new PrismaPg({ connectionString: readCleanEnv('DATABASE_URL') });
 
+// 每筆 ingestion_runs 都記是哪個 Cloud Run revision 寫的（Cloud Run 注入 K_REVISION；本機沒有，存 null），
+// 程式改壞時用來圈出壞版本跑過的匯入。在這裡統一帶，19 個 domain 跟之後新加的都不用各自記得填。
+const revision = process.env.K_REVISION ?? null;
+
 // Instantiate a single PrismaClient instance to be used across the application.
 export const prisma = new PrismaClient({
   adapter,
   // 'query' 開下去在批次 ingest（例如一次幾百筆 company-profile）時會洗版，開發環境只留 warn/error。
   log: config.isProduction ? ['error'] : ['warn', 'error'],
+}).$extends({
+  query: { ingestionRun: { create: ({ args, query }) => query({ ...args, data: { ...args.data, revision } }) } },
 });
 
 export const connectDb = async () => {
