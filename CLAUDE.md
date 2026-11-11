@@ -9,7 +9,7 @@ export view 的讀者是 oingg-data-rust（它讀哪些 view 看該 repo crates/
 PRD 上線（使用者 2026-11-11 定的）：
 - 非 breaking 的改動直接上 PRD：先在 DEV 驗過，同一天先 DEV 再 PRD 就可以。breaking 的照上面 export view 的兩階段。資料庫結構一律先加、穩定後再刪，讓上一版程式也能跑（退版不會退 migration）。
 - 改了解析讓存的值變了：上線前抽樣比對新舊值，寫出影響範圍（view、欄位、日期或期別、代號）；上線後把範圍通知數據中台（oingg-data-rust），由它決定要不要記規則變更，gov 不送規則變更紀錄。
-- 部署後第一輪跑完先自己核對（筆數、空值、跟上一輪的差異），再通知下游和管理站；「修好了」的通知要寫資料集和代號。不是每天跑的排程要手動觸發才有第一輪，觸發 PRD 匯入要問使用者。
+- 部署後第一輪跑完先自己核對（筆數、空值、跟上一輪的差異：push main 前先跑 `npx tsx --env-file=<env 檔> scripts/postDeployCompare.ts capture`，第一輪跑完再跑 `diff`），再通知下游和管理站；「修好了」的通知要寫資料集和代號。不是每天跑的排程要手動觸發才有第一輪，觸發 PRD 匯入要問使用者。
 - 程式改壞可以先切流量回上一版、再回報使用者（使用者事先授權，只限切流量）：gcloud run services update-traffic oingg-gov-ts --region=asia-southeast1 --to-revisions=<上一版>=100。寫資料、觸發匯入、migration 照舊每次問。修好 push main 後，部署的 to-latest 步驟會把流量切回最新版。
 - 資料改壞用修好的版本重跑該資料集。平常只新增的來源要帶 force=true 才會蓋掉舊值。ingestion_runs.revision 記了每次匯入是哪一版寫的，用來圈範圍。
 
