@@ -252,6 +252,26 @@ The runtime identity holds only `objectCreator` and `objectViewer` on the produc
 bucket, and writes use `x-goog-if-generation-match: 0`, so nothing in the service can
 replace a stored response.
 
+## Post-deploy compare
+
+Before pushing main, run `npx tsx --env-file=<env file> scripts/postDeployCompare.ts
+capture`. Once the first scheduled runs after the deploy have finished, run the same
+command with `diff`. It is the same method as oingg-data-rust's
+`tools/post-deploy-compare.mjs`, adapted to views that keep one row per period:
+
+- Every export view is compared row by row, by the natural key in
+  `src/shared/postDeployCompare.ts`. Rows are counted as changed (same key and
+  period, different values), removed or added.
+- Each column is hashed separately. The diff names the columns that changed, and a
+  column the deploy adds or drops does not count as a change.
+- `diff` exits with 1 when a view has more changed or removed rows than max(5, 1% of
+  its rows), or when a column's null rate rose by 2 points or more. The flagged views,
+  columns, periods and keys are the impact scope to report.
+
+It only reads, inside a read-only transaction. Snapshots stay in the OS temp
+directory (`oingg-post-deploy/gov-ts-<endpoint>.json`), one per database, so DEV and
+PRD never mix.
+
 ## Production memory headroom
 
 Measured on revision 00018 (2Gi, `--max-old-space-size=768`, 500-row chunking), 2026-09-25:
