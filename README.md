@@ -289,10 +289,12 @@ Why the old config survived at all: the load was thinner than the schedule read.
 time only two jobs ran daily, and the rest were aligned to release dates spread across the
 month.
 
-Since 2026-10-30 the eleven small CBC/DGBAS/NDC/FRED jobs run every day between 03:02 and
+Since 2026-10-30 the small CBC/DGBAS/NDC/FRED jobs run every day between 03:02 and
 03:57, five minutes apart, so they share a warm instance in sequence rather than in
 parallel. A month-aligned job that hit a late file or a failed fetch waited a whole month
-for its next try; see the header of `scripts/scheduler.config.ts`. Most daily runs insert
+for its next try; see the header of `scripts/scheduler.config.ts`. The exception since
+2026-11-12 is the business-cycle reference dates: NDC adds a turning point once every few
+years, so that job runs on the 1st of each month. Most daily runs insert
 nothing (`skipDuplicates`). The heaviest of them, unemployment rate at ~12,000 rows, is
 below the ~30,000 rows of the 2026-09-25 test above.
 

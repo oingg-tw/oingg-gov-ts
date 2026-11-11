@@ -17,7 +17,8 @@
  * 11/10；景氣指標 10/28 03:22 回 200，但國發會的開放資料檔當時還沒換，九月要等到 11/28。
  * 這 11 支都是秒級的小檔案，每天打沒有負擔。只有勞動部兩份（年更的現況快照）跟 322MB 的稅籍檔
  * 維持每月。名稱也從 -monthly/-quarterly 改成 -daily：reconcile 不會刪 job，舊名要手動
- * `gcloud scheduler jobs delete`。
+ * `gcloud scheduler jobs delete`。2026-11-12 管理站請各後台核對排程有沒有濫用，使用者再次確認其餘 10 支
+ * 維持每天，只有景氣峰谷日期改回每月（理由見該 job）。
  * - fund-daily-nav 每天 22:00：SITCA 的 nav.csv 是 T 日晚間陸續發布，22:00 抓到的是 T 日部分
  *   （實測 2026-09-21 當天 467 檔）；檔案本身是 2 個交易日的滾動窗口，隔天 22:00 那次會把 T 日補齊
  *   （09-18 最後是 4445 檔），所以不用另外排隔天早上的補抓。
@@ -82,8 +83,9 @@ export const schedulerConfig = {
     // 國發會景氣指標 ZIP（ws.ndc.gov.tw），官方每月 27 日發布新聞稿，但開放資料檔會晚一點才換
     // （2026-10-28 03:22 抓到的還是舊檔）。
     { name: 'monthly-business-cycle-indicator-daily', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '22 3 * * *' },
-    // 歷次景氣循環峰谷日期：不定期更新（國發會認定轉折點才補），十幾列。
-    { name: 'business-cycle-reference-date-daily', path: '/api/ingest/business-cycle-reference-date', schedule: '33 3 * * *' },
+    // 歷次景氣循環峰谷日期：不定期更新（國發會認定轉折點才補，幾年一次），十幾列。2026-11-12 使用者核准從每天
+    // 改成每月 1 日：10/31 起每天抓 12 次都沒變，數據中台晚一個月拿到也沒差。
+    { name: 'business-cycle-reference-date-monthly', path: '/api/ingest/business-cycle-reference-date', schedule: '33 3 1 * *' },
     // 投信投顧公會 CSV（www.sitca.org.tw）
     { name: 'fund-basic-info-weekly', path: '/api/ingest/fund-basic-info', schedule: '27 3 * * 2' },
     { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '2 22 * * *' },
