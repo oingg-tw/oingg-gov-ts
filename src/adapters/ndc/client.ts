@@ -1,5 +1,6 @@
 import AdmZip from 'adm-zip';
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
+import { fetchUpstream } from '@/shared/bronze';
 
 // 國發會景氣指標及燈號（data.gov.tw/dataset/6099），固定路徑 ZIP 檔案，不是正式 REST API。實際
 // 打開 https://data.gov.tw/api/v2/rest/dataset/6099 查到的下載連結（2026-09-02）——這個 URL 本身
@@ -15,13 +16,12 @@ const TARGET_ENTRY_NAME = '景氣指標與燈號.csv';
 // 回傳 CSV 原始文字（UTF-8 with BOM，呼叫端自己處理 BOM/表頭）。ws.ndc.gov.tw 的 TLS 憑證正常
 // （不像 ws.dgbas.gov.tw 那台主機，見 adapters/dgbas/client.ts 的說明），用一般 fetch 即可。
 export const fetchBusinessCycleIndicatorCsv = async (): Promise<string> => {
-  const response = await fetch(BUSINESS_CYCLE_ZIP_URL, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+  const response = await fetchUpstream(BUSINESS_CYCLE_ZIP_URL, 'zip', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`國發會景氣指標 ZIP 下載失敗：HTTP ${response.status}`);
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  const zip = new AdmZip(buffer);
+  const zip = new AdmZip(response.body);
   const entry = zip.getEntry(TARGET_ENTRY_NAME);
   if (!entry) {
     throw new Error(`國發會景氣指標 ZIP 裡找不到「${TARGET_ENTRY_NAME}」，格式可能已變更。`);
@@ -38,9 +38,9 @@ const BUSINESS_CYCLE_REFERENCE_DATES_CSV_URL =
 
 // 回傳 CSV 原始文字（UTF-8 with BOM，2026-10-10 實測）。
 export const fetchBusinessCycleReferenceDatesCsv = async (): Promise<string> => {
-  const response = await fetch(BUSINESS_CYCLE_REFERENCE_DATES_CSV_URL, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+  const response = await fetchUpstream(BUSINESS_CYCLE_REFERENCE_DATES_CSV_URL, 'csv', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`國發會景氣循環峰谷日期 CSV 下載失敗：HTTP ${response.status}`);
   }
-  return response.text();
+  return response.body.toString('utf8');
 };

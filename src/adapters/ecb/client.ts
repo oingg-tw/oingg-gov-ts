@@ -1,4 +1,5 @@
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
+import { fetchUpstream } from '@/shared/bronze';
 
 // ECB Data Portal 的 SDMX REST API（data-api.ecb.europa.eu），免帳號免 API key，官方對外文件化的
 // 正式端點——不是網頁爬蟲路徑。gov-ts 第二個非台灣來源，定位跟 FRED 一樣是「官方統計來源」。
@@ -26,11 +27,11 @@ export interface EcbCsvFetchResult {
 export const fetchEcbSeriesCsv = async (seriesPath: string): Promise<EcbCsvFetchResult> => {
   // detail=dataonly 去掉屬性欄位，只留維度＋觀測值
   const url = `${ECB_DATA_API_BASE_URL}/${seriesPath}?format=csvdata&detail=dataonly`;
-  const response = await fetch(url, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+  const response = await fetchUpstream(url, 'csv', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`ECB Data Portal 下載失敗：HTTP ${response.status}（series=${seriesPath}）`);
   }
-  const content = await response.text();
+  const content = response.body.toString('utf8');
 
   const lastModifiedHeader = response.headers.get('last-modified');
   const lastModified = lastModifiedHeader ? new Date(lastModifiedHeader) : null;
