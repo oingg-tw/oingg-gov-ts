@@ -78,9 +78,25 @@ steps:
       - --set-env-vars=NODE_ENV=production,NODE_OPTIONS=--max-old-space-size=768
       - --quiet
 
+  # 退版是把流量釘在上一個 revision（update-traffic --to-revisions=<上一版>=100）。釘住之後新部署的 revision
+  # 拿不到流量，build 卻照樣成功（官方文件：all subsequent deployments use that traffic split pattern going
+  # forward）。push main 就是要上線，所以每次都切回最新版（2026-11-11）。放在 tag-prd 前面，prd 標籤才會標在
+  # 真的接流量的映像上。
+  - id: to-latest
+    name: gcr.io/cloud-builders/gcloud
+    args:
+      - run
+      - services
+      - update-traffic
+      - ${_SERVICE}
+      - --to-latest
+      - --region=${_REGION}
+      - --quiet
+
   # 部署成功才走到這步（步驟依序執行，deploy 失敗整個 build 就停）：把正式站正在用的映像標成 prd。
-  # Artifact Registry 的清理規則「保留最近 2 個」之外另有 Keep tagPrefixes [prd]——push 在 deploy 之前，
-  # 連續兩次部署失敗會把正式站的映像擠出前 2 名，沒有這個標籤就會被清掉、下次冷啟動起不來（2026-10-27）。
+  # Artifact Registry 的清理規則（scripts/artifact-cleanup-policy.json）是保留最近 10 個，另有 Keep tagPrefixes [prd]——
+  # push 在 deploy 之前，連續部署失敗會把正式站的映像擠出保留名額，沒有這個標籤就會被清掉、下次冷啟動起不來
+  # （2026-10-27）。保留數 2026-11-11 從 2 調成 10：只留 2 個時，切流量退版只退得回上一版。
   # 用 docker tag + push，不用 gcloud artifacts docker tags add：後者移動既有標籤要 artifactregistry.tags.delete，
   # 建置身分的 artifactregistry.writer 沒有（twse-ts 實測 PERMISSION_DENIED）；docker push 移動標籤只要 writer，
   # 跟每次移動 latest 同一條路。

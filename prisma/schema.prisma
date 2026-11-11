@@ -488,6 +488,10 @@ model IngestionRun {
   // Last-Modified header（例如 CBC 統計資料庫 API），不是資料缺陷。
   sourceLastModified DateTime? @map("source_last_modified") @db.Timestamptz(6)
 
+  // 寫這筆紀錄的 Cloud Run revision（K_REVISION，例如 oingg-gov-ts-00041-abc），2026-11-11 起。程式改壞時用來
+  // 圈出哪些匯入是壞版本跑的。本機跑沒有 K_REVISION，是 null。由 adapters/prisma 統一帶入，各 domain 不用填。
+  revision String?
+
   @@index([dataset, status])
   @@map("ingestion_runs")
   @@schema("export")
