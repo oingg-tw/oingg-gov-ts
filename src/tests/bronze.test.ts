@@ -102,8 +102,8 @@ describe('bronze layer', () => {
 });
 
 describe('job and dataset mapping', () => {
-  it('covers every scheduled job with a distinct dataset', () => {
-    // scripts/ 不在 tsc 的 rootDir 裡，不能 import，直接讀檔取每支排程的端點（同 rateLimiter.test.ts）。
+  it('covers every scheduled or stopped job with a distinct dataset', () => {
+    // scripts/ 不在 tsc 的 rootDir 裡，不能 import，直接讀檔取每支排程的端點（jobs 加 stoppedJobs，同 rateLimiter.test.ts）。
     const jobs = [...readFileSync('scripts/scheduler.config.ts', 'utf-8').matchAll(/path: '\/api\/ingest\/([a-z0-9-]+)'/g)].map((match) => match[1]!);
     expect(Object.keys(DATASET_BY_JOB).sort()).toEqual([...jobs].sort());
     expect(new Set(Object.values(DATASET_BY_JOB)).size).toBe(jobs.length);

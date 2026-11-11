@@ -4,7 +4,8 @@
  * 不符的 job，或建立設定裡有、但 Cloud Scheduler 上還沒有的 job。
  *
  * 抄自 oingg-twse-ts/scripts/reconcileScheduler.ts，差異：
- * - 多比對/套用 attemptDeadline，可逐 job 覆寫（gov-ts 有兩支 15-30 分鐘的 long-running job，見 scheduler.config.ts）
+ * - 多比對/套用 attemptDeadline，可逐 job 覆寫（long-running 的稅籍檔 job 用，見 scheduler.config.ts）
+ * - 只套用 schedulerConfig.jobs，stoppedJobs 不建
  * - 執行前先擋 serviceUrl/serviceAccount 還是 placeholder 的情況
  * - Task secret 名稱從 config 讀（gov-task-secret），不寫死
  *
