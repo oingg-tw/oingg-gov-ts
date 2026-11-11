@@ -1,4 +1,5 @@
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
+import { fetchUpstream } from '@/shared/bronze';
 
 // FRED（美國聖路易聯邦準備銀行的經濟資料庫）的序列 CSV 直連。這是 gov-ts 第一個非台灣來源
 // （2026-09-22，使用者裁定放 gov-ts，定位從「台灣政府開放資料」擴大成「官方統計來源」）。
@@ -22,11 +23,11 @@ export interface FredCsvFetchResult {
 
 export const fetchFredSeriesCsv = async (seriesId: string): Promise<FredCsvFetchResult> => {
   const url = `${FRED_CSV_BASE_URL}?id=${encodeURIComponent(seriesId)}`;
-  const response = await fetch(url, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+  const response = await fetchUpstream(url, 'csv', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`FRED CSV 下載失敗：HTTP ${response.status}（series=${seriesId}）`);
   }
-  const content = await response.text();
+  const content = response.body.toString('utf8');
 
   const lastModifiedHeader = response.headers.get('last-modified');
   const lastModified = lastModifiedHeader ? new Date(lastModifiedHeader) : null;

@@ -3,6 +3,7 @@ import https from 'node:https';
 import tls from 'node:tls';
 import { X509Certificate } from 'node:crypto';
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
+import { keepUpstream, type UpstreamResponse } from '@/shared/bronze';
 
 // 行政院主計總處統計網站的固定路徑 XML 下載檔案（ws.dgbas.gov.tw），不是正式 REST API——每份
 // 統計表各自有自己的固定 URL（依資料集不同，見各 domain 的 service.ts），沒有查詢參數，只能整份
@@ -240,7 +241,16 @@ export interface DgbasObs {
 // 已用真實回應核對過：CPI 檔案 88,614 個 <Obs>，這個 regex 全部解析成功、一個不漏（2026-09-02）。
 const OBS_REGEX = /<Obs>\s*<Item>([^<]*)<\/Item>\s*<TIME_PERIOD>([^<]*)<\/TIME_PERIOD>\s*<FREQ>([^<]*)<\/FREQ>\s*<TYPE>([^<]*)<\/TYPE>\s*<Item_VALUE>([^<]*)<\/Item_VALUE>\s*<\/Obs>/g;
 
+// 存進銅層的是 AIA 補完憑證後真正拿到的那份回應（shared/bronze.ts）；錯誤狀態也先存再丟錯。
 export const fetchDgbasXml = async (url: string): Promise<string> => {
+  const response = await keepUpstream(url, 'xml', () => downloadWithAia(url));
+  if (!response.ok) {
+    throw new Error(`DGBAS XML 下載失敗：HTTP ${response.status}（url=${url}）`);
+  }
+  return response.body.toString('utf8');
+};
+
+const downloadWithAia = async (url: string): Promise<UpstreamResponse> => {
   try {
     return await downloadXml(url);
   } catch (error) {
@@ -263,20 +273,19 @@ export const fetchDgbasXml = async (url: string): Promise<string> => {
   }
 };
 
-const downloadXml = (url: string): Promise<string> => {
+// 任何 HTTP 狀態都整份讀完回傳（錯誤回應也要存進銅層），要不要丟錯由 fetchDgbasXml 看 ok 決定。
+const downloadXml = (url: string): Promise<UpstreamResponse> => {
   return new Promise((resolve, reject) => {
     https
       .get(url, { agent: dgbasHttpsAgent, headers: { 'User-Agent': OUTBOUND_USER_AGENT } }, (res) => {
-        const statusCode = res.statusCode ?? 0;
-        if (statusCode < 200 || statusCode >= 300) {
-          res.resume(); // 消耗掉 response body，避免 socket 卡住不釋放
-          reject(new Error(`DGBAS XML 下載失敗：HTTP ${statusCode}（url=${url}）`));
-          return;
-        }
-
         const chunks: Buffer[] = [];
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+        res.on('end', () => {
+          const status = res.statusCode ?? 0;
+          const headers = new Headers();
+          for (const [name, value] of Object.entries(res.headers)) if (typeof value === 'string') headers.set(name, value);
+          resolve({ ok: status >= 200 && status < 300, status, headers, body: Buffer.concat(chunks) });
+        });
         res.on('error', reject);
       })
       .on('error', reject);
