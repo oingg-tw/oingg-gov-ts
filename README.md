@@ -103,10 +103,11 @@ pnpm dev                # tsx watch src/index.ts
 pnpm test                # vitest run — src/tests/
 ```
 
-`pnpm dev` starts the API on `PORT` (default 8084) — part of the ecosystem's
-shared port allocation maintained in oingg-conductor-ts's
-[`docs/conventions.md`](../oingg-conductor-ts/docs/conventions.md), so it
-doesn't collide with the other services when running side by side. Swagger
+`pnpm dev` starts the API on `PORT` (default 8084), the port registered for
+oingg-gov-ts in the ecosystem's local port table,
+[oingg-admin-vue `docs/本機埠號.md`](https://github.com/oingg-tw/oingg-admin-vue/blob/main/docs/%E6%9C%AC%E6%A9%9F%E5%9F%A0%E8%99%9F.md),
+so it doesn't collide with the other services when running side by side. To take
+a new port, check that table and register it with the admin site first. Swagger
 docs are served at `/api-docs`.
 
 All `/api/ingest/*` routes require a `TASK_SECRET` (via the `X-Task-Secret`
