@@ -21,6 +21,7 @@ import fundBasicInfoRouter from '@/domains/fundBasicInfo/route';
 import fundDailyNavRouter from '@/domains/fundDailyNav/route';
 import { requireTaskSecret } from '@/shared/middleware';
 import { ingestRateLimit } from '@/shared/rateLimiter';
+import { bronzeRun } from '@/shared/bronzeRun';
 // 每新增一個 domain（例如 exchangeRate、interestRate），在這裡 import 其 route.ts 並掛進 ingestRouter。
 //
 // 2026-10-07 起 gov-ts 只有 /api/ingest，而且每一支都是排程觸發的——沒有查詢面，也沒有需要
@@ -37,7 +38,7 @@ import { ingestRateLimit } from '@/shared/rateLimiter';
 //
 // ingestRouter 整層掛了 requireTaskSecret + ingestRateLimit（跟 oingg-mops-ts 的做法一致：掛在
 // router 層級一次涵蓋全部現有跟未來的 /api/ingest/*，不用每個 route.ts 各自標註）——這幾個端點會
-// 真的去打 CBC/主計總處/財政部等上游（labor-broker-tax-registration 甚至會串流下載 322MB 檔案），
+// 真的去打 CBC/主計總處/財政部等上游（labor-broker-tax-registration 甚至會下載 322MB 檔案），
 // 沒有保護的話任何人知道 URL 就能觸發，見 oingg-conductor-ts 的 docs/conventions.md「TASK_SECRET」一節。
 
 const router = Router();
@@ -47,7 +48,7 @@ router.use(rootRouter);
 
 // --- API Routes ---
 const ingestRouter = Router();
-ingestRouter.use(requireTaskSecret, ingestRateLimit);
+ingestRouter.use(requireTaskSecret, ingestRateLimit, bronzeRun); // bronzeRun：原始回應存進銅層，見 shared/bronze.ts
 ingestRouter.use(govBondYield10yRouter);
 ingestRouter.use(monthlyFiveMajorBankRateRouter);
 ingestRouter.use(cbcPolicyRateRouter);

@@ -58,7 +58,8 @@ steps:
       - --no-allow-unauthenticated
       # 執行身分只能讀那兩個 secret、寫 log（2026-11-09）：原本沿用預設 compute 服務帳號，帶著 run.admin、
       # 專案層級 iam.serviceAccountUser 和 artifactregistry.writer，程式被打穿就能重新部署、冒用專案裡的
-      # 任何服務帳號。程式本身不呼叫任何 GCP API。
+      # 任何服務帳號。2026-11-11 起多了銅層 bucket oingg-gov-bronze 的 objectCreator + objectViewer（只能
+      # 新增和讀，不能覆寫或刪除），這是程式唯一呼叫的 GCP API。
       - --service-account=gov-ts-runtime@$PROJECT_ID.iam.gserviceaccount.com
       # 那幾個跑很久的 ingest 端點（refresh-tracked 實測約 17 分鐘、company-industry-classification
       # 要下載 322MB）遠超 Cloud Run 預設的 300 秒逾時，設到上限 3600 秒。Request-based billing
@@ -75,7 +76,8 @@ steps:
       # 768 + 2Gi 是 sitca-ts 實測穩定的組合，直接沿用。
       - --memory=2Gi
       - --set-secrets=DATABASE_URL=gov-database-url:latest,TASK_SECRET=gov-task-secret:latest
-      - --set-env-vars=NODE_ENV=production,NODE_OPTIONS=--max-old-space-size=768
+      # BRONZE_BUCKET：每次抓到的原始回應存在這裡（shared/bronze.ts），正式環境沒設就整次匯入失敗。
+      - --set-env-vars=NODE_ENV=production,NODE_OPTIONS=--max-old-space-size=768,BRONZE_BUCKET=oingg-gov-bronze
       - --quiet
 
   # 退版是把流量釘在上一個 revision（update-traffic --to-revisions=<上一版>=100）。釘住之後新部署的 revision

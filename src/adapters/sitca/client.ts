@@ -1,4 +1,5 @@
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
+import { fetchUpstream } from '@/shared/bronze';
 
 // 投信投顧公會(SITCA)在 data.gov.tw 登記的開放資料集，實際檔案掛在 sitca.org.tw，固定路徑 CSV
 // 直連，無查詢式 API。跟其他 service（例如 oingg-sitca-ts）的分工是：登記在 data.gov.tw 平台的
@@ -22,12 +23,11 @@ export interface SitcaCsvFetchResult {
 }
 
 export const fetchSitcaCsv = async (url: string): Promise<SitcaCsvFetchResult> => {
-  const response = await fetch(url, { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+  const response = await fetchUpstream(url, 'csv', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
   if (!response.ok) {
     throw new Error(`SITCA CSV 下載失敗：HTTP ${response.status}（url=${url}）`);
   }
-  const buffer = Buffer.from(await response.arrayBuffer());
-  const content = buffer.toString('utf8').replace(/^﻿/, ''); // 去掉 BOM，避免第一欄位名稱比對失敗
+  const content = response.body.toString('utf8').replace(/^﻿/, ''); // 去掉 BOM，避免第一欄位名稱比對失敗
 
   const lastModifiedHeader = response.headers.get('last-modified');
   const lastModified = lastModifiedHeader ? new Date(lastModifiedHeader) : null;

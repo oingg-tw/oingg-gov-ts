@@ -204,6 +204,27 @@ Two gaps these do **not** cover:
   means nothing to alert on. Those sources can be re-run any time, so `pnpm
   scheduler:check`, which compares intent against Cloud Scheduler, is the thing to run.
 
+## Raw responses (bronze layer)
+
+Every upstream response, failed ones included, is stored as-is in
+`gs://oingg-gov-bronze` before it is parsed (`src/shared/bronze.ts`). Objects are
+never overwritten or deleted. They move to Coldline after 30 days
+(`scripts/bronze-lifecycle.json`). If a response cannot be stored, the run fails.
+
+- Path: `<job>/<Taipei date>/<HHmmss>_<first 12 hex of sha256>.<ext>`, where `<job>`
+  is the `/api/ingest/<job>` route. The object metadata holds the URL, HTTP status,
+  sha256, revision and the upstream `Last-Modified`.
+- `export.ingestion_runs.raw_objects` lists the objects a run used.
+- POSTing an ingest route with `{ "replayRunId": <run_id>, "force": true }` re-runs
+  that run from its stored objects instead of the network.
+  `scripts/replayIngest.ts <job> <from> <to>` does this for a date range: every run
+  for the two SITCA snapshots, and only the latest run for the other sources, whose
+  files each hold the full history or the whole current state.
+
+The runtime identity holds only `objectCreator` and `objectViewer` on this bucket, and
+writes use `x-goog-if-generation-match: 0`, so nothing in the service can replace a
+stored response.
+
 ## Production memory headroom
 
 Measured on revision 00018 (2Gi, `--max-old-space-size=768`, 500-row chunking), 2026-09-25:
