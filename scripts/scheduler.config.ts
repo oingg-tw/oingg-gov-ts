@@ -17,11 +17,12 @@
  * 11/10；景氣指標 10/28 03:22 回 200，但國發會的開放資料檔當時還沒換，九月要等到 11/28。
  * 這 11 支都是秒級的小檔案，每天打沒有負擔。只有勞動部兩份（年更的現況快照）跟 322MB 的稅籍檔
  * 維持每月。名稱也從 -monthly/-quarterly 改成 -daily：reconcile 不會刪 job，舊名要手動
- * `gcloud scheduler jobs delete`。
+ * `gcloud scheduler jobs delete`。2026-11-12 管理站請各後台核對排程有沒有濫用，使用者再次確認其餘 10 支
+ * 維持每天，只有景氣峰谷日期改回每月（理由見該 job），勞動部仲介三支停用（見 stoppedJobs）。
  * - fund-daily-nav 每天 22:00：SITCA 的 nav.csv 是 T 日晚間陸續發布，22:00 抓到的是 T 日部分
  *   （實測 2026-09-21 當天 467 檔）；檔案本身是 2 個交易日的滾動窗口，隔天 22:00 那次會把 T 日補齊
  *   （09-18 最後是 4445 檔），所以不用另外排隔天早上的補抓。
- * - 一支 long-running（labor-broker-tax-registration，每月 3 日）attemptDeadline 設到 Cloud Scheduler
+ * - 一支 long-running（labor-broker-tax-registration，每月 3 日；2026-11-12 起停用，設定留在 stoppedJobs）attemptDeadline 設到 Cloud Scheduler
  *   上限 30 分鐘：它要串流掃完財政部那份 322MB 稅籍檔（實測數分鐘），預設 180s 會讓 Scheduler 在
  *   job 還在跑時判定失敗並重試，造成重疊執行。其他 job 都在 10 秒內完成，維持預設 180s。
  *   （2026-10-07 之前還有兩支——company-profile-refresh-tracked-weekly 與
@@ -82,11 +83,18 @@ export const schedulerConfig = {
     // 國發會景氣指標 ZIP（ws.ndc.gov.tw），官方每月 27 日發布新聞稿，但開放資料檔會晚一點才換
     // （2026-10-28 03:22 抓到的還是舊檔）。
     { name: 'monthly-business-cycle-indicator-daily', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '22 3 * * *' },
-    // 歷次景氣循環峰谷日期：不定期更新（國發會認定轉折點才補），十幾列。
-    { name: 'business-cycle-reference-date-daily', path: '/api/ingest/business-cycle-reference-date', schedule: '33 3 * * *' },
+    // 歷次景氣循環峰谷日期：不定期更新（國發會認定轉折點才補，幾年一次），十幾列。2026-11-12 使用者核准從每天
+    // 改成每月 1 日：10/31 起每天抓 12 次都沒變，數據中台晚一個月拿到也沒差。
+    { name: 'business-cycle-reference-date-monthly', path: '/api/ingest/business-cycle-reference-date', schedule: '33 3 1 * *' },
     // 投信投顧公會 CSV（www.sitca.org.tw）
     { name: 'fund-basic-info-weekly', path: '/api/ingest/fund-basic-info', schedule: '27 3 * * 2' },
     { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '2 22 * * *' },
+  ] satisfies SchedulerJobConfig[],
+  // 停用的 job：reconcile 只套用 jobs，這裡的不會建，端點、view 和已存的資料都留著。要恢復就搬回 jobs、
+  // 跑 pnpm scheduler:apply，再手動觸發一次。
+  // 勞動部仲介三支 2026-11-12 使用者核准停用（管理站請各後台核對排程有沒有濫用）：9/22 收進來是留給數據中台
+  // 串接，但 data-ts、data-rust 都沒讀這三個 view。三支每次都整份重寫現況，停掉不會丟歷史。
+  stoppedJobs: [
     // 勞動部開放資料（apiservice.mol.gov.tw）——官方標示年更，但兩份都是「現況快照」（許可證會展延/
     // 停業/廢止，評鑑會補上新年度），每月跑一次確保狀態新鮮，成本只有兩個幾百 KB 的 CSV。
     { name: 'labor-broker-license-monthly', path: '/api/ingest/labor-broker-license', schedule: '2 6 5 * *' },

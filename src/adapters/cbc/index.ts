@@ -21,9 +21,13 @@ export interface CbcApiResponse {
   };
 }
 
+// 每次回應的 meta.prepared 都是央行產生回應的當下時間（到秒），銅層比「內容跟上次一樣」時要拿掉，不然天天都算新檔
+// （使用者 2026-11-12 核准）。解析不讀這個欄位。
+export const withoutPreparedTime = (body: Buffer): string => body.toString('utf8').replace(/"prepared":"[^"]*"/, '');
+
 export const fetchCbcItem = async (itemCode: string): Promise<CbcApiResponse> => {
   const url = `${CBC_API_BASE_URL}?FileName=${encodeURIComponent(itemCode)}`;
-  const response = await fetchUpstream(url, 'json', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } });
+  const response = await fetchUpstream(url, 'json', { headers: { 'User-Agent': OUTBOUND_USER_AGENT } }, withoutPreparedTime);
   if (!response.ok) {
     throw new Error(`CBC API 回應非 200：${response.status}（itemCode=${itemCode}）`);
   }

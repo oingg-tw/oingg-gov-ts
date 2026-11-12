@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Request, Response } from 'ultimate-express';
+import { withoutPreparedTime } from '@/adapters/cbc/index';
 import { currentRawObjects, keepUpstream, rawObjectName, runRawContext, type UpstreamResponse } from '@/shared/bronze';
 import { bronzeRun } from '@/shared/bronzeRun';
 import { DATASET_BY_JOB, pickRunsToReplay } from '@/shared/ingestDatasets';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-// 銅層 v1：每次抓到的回應先原樣存進 GCS 再解析，錯誤回應也存；寫不進去不擋匯入、記 [bronze-write-failed]；
-// 帶 replayRunId 時改回放存過的檔。
-const gcs = vi.hoisted(() => ({ putObjectIfAbsent: vi.fn(), getObject: vi.fn() }));
+// 銅層 v1：每次抓到的回應先原樣存進 GCS 再解析，錯誤回應也存；跟同一網址上次存的一樣就記上次那個檔；
+// 寫不進去不擋匯入、記 [bronze-write-failed]；帶 replayRunId 時改回放存過的檔。
+const gcs = vi.hoisted(() => ({ putObjectIfAbsent: vi.fn(), getObject: vi.fn(), getObjectMetadata: vi.fn() }));
 const db = vi.hoisted(() => ({ ingestionRun: { findUnique: vi.fn() } }));
 vi.mock('@/adapters/gcs/client', () => gcs);
 vi.mock('@/adapters/prisma/index', () => ({ default: db }));
@@ -19,7 +21,16 @@ const response = (status: number, text: string): UpstreamResponse => ({
   headers: new Headers({ 'content-type': 'text/csv', 'last-modified': 'Tue, 11 Nov 2026 13:00:00 GMT' }),
   body: Buffer.from(text),
 });
-const inRun = <T>(fn: () => Promise<T>, replayRefs?: string[]) => runRawContext('v_fund_daily_navs', replayRefs, async () => [await fn(), currentRawObjects()] as const);
+const inRun = <T>(fn: () => Promise<T>, replayRefs?: string[], previous?: string[]) =>
+  runRawContext('v_fund_daily_navs', replayRefs, async () => [await fn(), currentRawObjects()] as const, previous);
+const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+const navRef = (day: string, text: string) => `gs://bronze-test/www.sitca.org.tw/MemberK0000/F/03/nav.csv/${day}/220200000_${sha(text).slice(0, 12)}.csv`;
+// getObjectMetadata 照 gs:// 網址回各檔存的 metadata
+const storedObjects = (objects: Record<string, { url?: string; text: string; status?: string }>) =>
+  gcs.getObjectMetadata.mockImplementation(async (bucket: string, name: string) => {
+    const { url = NAV_URL, text, status = '200' } = objects[`gs://${bucket}/${name}`]!;
+    return { source_url: url, http_status: status, sha256: sha(text) };
+  });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -87,12 +98,65 @@ describe('bronze layer', () => {
     expect(objects).toEqual([ref]);
   });
 
-  it('replays objects written before v1 and records them as gs:// URLs', async () => {
-    gcs.getObject.mockResolvedValue({ body: Buffer.from('old'), contentType: 'text/csv', metadata: { url: NAV_URL, status: '200', 'last-modified': 'Mon, 10 Nov 2026 13:00:00 GMT' } });
-    const [got, objects] = await inRun(() => keepUpstream(NAV_URL, 'csv', vi.fn()), ['fund-daily-nav/2026-11-11/103752_58052ec0f9bb.csv']);
-    expect(gcs.getObject).toHaveBeenCalledWith('oingg-gov-bronze', 'fund-daily-nav/2026-11-11/103752_58052ec0f9bb.csv');
-    expect([got.status, got.headers.get('last-modified')]).toEqual([200, 'Mon, 10 Nov 2026 13:00:00 GMT']);
-    expect(objects).toEqual(['gs://oingg-gov-bronze/fund-daily-nav/2026-11-11/103752_58052ec0f9bb.csv']);
+  it('reuses the last object stored for the same URL when the content and status match', async () => {
+    const same = navRef('2026-11-10', 'csv');
+    // 同一個路徑、內容也一樣，但是另一個請求（查詢參數不同）
+    const otherRequest = navRef('2026-11-11', 'csv');
+    storedObjects({ [same]: { text: 'csv' }, [otherRequest]: { url: `${NAV_URL}?page=2`, text: 'csv' } });
+    const [, objects] = await inRun(() => keepUpstream(NAV_URL, 'csv', async () => response(200, 'csv')), undefined, [otherRequest, 'gs://elsewhere/x.csv', same]);
+    expect(gcs.putObjectIfAbsent).not.toHaveBeenCalled();
+    expect(objects).toEqual([same]);
+  });
+
+  it('stores again when the latest object of the URL differs in content (A → B → A) or status', async () => {
+    const a = navRef('2026-11-09', 'csv');
+    const b = navRef('2026-11-10', 'changed');
+    storedObjects({ [a]: { text: 'csv' }, [b]: { text: 'changed' } });
+    await inRun(() => keepUpstream(NAV_URL, 'csv', async () => response(200, 'csv')), undefined, [a, b]);
+    const busy = navRef('2026-11-11', 'csv');
+    storedObjects({ [busy]: { text: 'csv', status: '503' } });
+    await inRun(() => keepUpstream(NAV_URL, 'csv', async () => response(200, 'csv')), undefined, [busy]);
+    expect(gcs.putObjectIfAbsent).toHaveBeenCalledTimes(2);
+  });
+
+  it('compares CBC responses without the time they were prepared', async () => {
+    const cbcUrl = 'https://cpx.cbc.gov.tw/API/DataAPI/Get?FileName=EG28D01en';
+    const cbc = (prepared: string, rate = '2.000') => `{"meta":{"prepared":"${prepared}","filename":"EG28D01en.px"},"data":{"dataSets":[["2026M06",${rate}]]}}`;
+    const kept = cbc('2026/11/11 上午 05:02:06');
+    const earlier = `gs://bronze-test/cpx.cbc.gov.tw/API/DataAPI/Get/2026-11-11/050206000_${sha(kept).slice(0, 12)}.json`;
+    gcs.getObjectMetadata.mockResolvedValue({ source_url: cbcUrl, http_status: '200', sha256: sha(kept) });
+    gcs.getObject.mockResolvedValue({ body: Buffer.from(kept), contentType: 'application/json', metadata: {} });
+    const fetchCbc = (text: string) => inRun(() => keepUpstream(cbcUrl, 'json', async () => response(200, text), 'GET', withoutPreparedTime), undefined, [earlier]);
+    const [, objects] = await fetchCbc(cbc('2026/11/12 上午 05:02:07'));
+    expect(objects).toEqual([earlier]);
+    expect(gcs.putObjectIfAbsent).not.toHaveBeenCalled();
+    await fetchCbc(cbc('2026/11/12 上午 05:02:07', '2.125'));
+    expect(gcs.putObjectIfAbsent).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to fetch upstream from a local process connected to the PRD database, but still replays', async () => {
+    const original = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = 'postgresql://u:p@ep-delicate-dream-az4wuglk-pooler.example.neon.tech/neondb';
+    try {
+      const download = vi.fn();
+      await expect(inRun(() => keepUpstream(NAV_URL, 'csv', download))).rejects.toThrow('PRD');
+      expect(download).not.toHaveBeenCalled();
+      gcs.getObject.mockResolvedValue({ body: Buffer.from('kept'), contentType: 'text/csv', metadata: { source_url: NAV_URL, http_status: '200' } });
+      const [got] = await inRun(() => keepUpstream(NAV_URL, 'csv', download), ['gs://oingg-gov-bronze/x.csv']);
+      expect(got.body.toString()).toBe('kept');
+    } finally {
+      if (original === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = original;
+    }
+  });
+
+  it('stores when the last object cannot be read', async () => {
+    gcs.getObjectMetadata.mockRejectedValueOnce(new Error('HTTP 403'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const [, objects] = await inRun(() => keepUpstream(NAV_URL, 'csv', async () => response(200, 'csv')), undefined, [navRef('2026-11-10', 'csv')]);
+    expect(gcs.putObjectIfAbsent).toHaveBeenCalledOnce();
+    expect(objects).toEqual([`gs://bronze-test/${gcs.putObjectIfAbsent.mock.calls[0]![1]}`]);
+    warn.mockRestore();
   });
 
   it('refuses to replay a URL the run did not store', async () => {
@@ -102,8 +166,8 @@ describe('bronze layer', () => {
 });
 
 describe('job and dataset mapping', () => {
-  it('covers every scheduled job with a distinct dataset', () => {
-    // scripts/ 不在 tsc 的 rootDir 裡，不能 import，直接讀檔取每支排程的端點（同 rateLimiter.test.ts）。
+  it('covers every scheduled or stopped job with a distinct dataset', () => {
+    // scripts/ 不在 tsc 的 rootDir 裡，不能 import，直接讀檔取每支排程的端點（jobs 加 stoppedJobs，同 rateLimiter.test.ts）。
     const jobs = [...readFileSync('scripts/scheduler.config.ts', 'utf-8').matchAll(/path: '\/api\/ingest\/([a-z0-9-]+)'/g)].map((match) => match[1]!);
     expect(Object.keys(DATASET_BY_JOB).sort()).toEqual([...jobs].sort());
     expect(new Set(Object.values(DATASET_BY_JOB)).size).toBe(jobs.length);

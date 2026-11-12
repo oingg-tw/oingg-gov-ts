@@ -493,6 +493,7 @@ model IngestionRun {
   revision String?
 
   // 這次匯入用到的原始回應：GCS oingg-gov-bronze 裡的物件路徑（銅層，2026-11-11 起，之前的紀錄是空陣列）。
+  // 2026-11-12 起回應跟同一網址上次存的一樣就不重存，這裡記的是之前那個檔，所以同一個檔會出現在好幾次匯入。
   // 銅層只增不刪；匯入端點帶 replayRunId 就改讀這幾個檔重跑這次匯入。由 adapters/prisma 統一帶入。
   rawObjects String[] @default([]) @map("raw_objects")
 

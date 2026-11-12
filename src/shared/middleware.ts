@@ -24,8 +24,8 @@ function safeSecretEquals(a: string, b: string): boolean {
  * If the secret is missing or invalid, it sends a 401 Unauthorized response.
  * If the `TASK_SECRET` environment variable is not set, it sends a 500 Server Error.
  *
- * （fail-closed 500 + timingSafeEqual 跟 oingg-twse-ts 的 requireTaskSecret 同一套，見 oingg-conductor-ts
- * 的 docs/conventions.md「TASK_SECRET」一節；2026-10-29 起值髒就 500，不再像 twse 那樣去引號，見 readCleanEnv。）
+ * （fail-closed 500 + timingSafeEqual 跟 oingg-twse-ts 的 requireTaskSecret 同一套，見 README 的 Setup 一節；
+ * 2026-10-29 起值髒就 500，不再像 twse 那樣去引號，見 readCleanEnv。）
  */
 export const requireTaskSecret = (req: Request, res: Response, next: NextFunction) => {
   let expectedSecret: string | undefined;

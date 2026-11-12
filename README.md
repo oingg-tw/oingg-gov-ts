@@ -103,10 +103,11 @@ pnpm dev                # tsx watch src/index.ts
 pnpm test                # vitest run — src/tests/
 ```
 
-`pnpm dev` starts the API on `PORT` (default 8084) — part of the ecosystem's
-shared port allocation maintained in oingg-conductor-ts's
-[`docs/conventions.md`](../oingg-conductor-ts/docs/conventions.md), so it
-doesn't collide with the other services when running side by side. Swagger
+`pnpm dev` starts the API on `PORT` (default 8084), the port registered for
+oingg-gov-ts in the ecosystem's local port table,
+[oingg-admin-vue `docs/本機埠號.md`](https://github.com/oingg-tw/oingg-admin-vue/blob/main/docs/%E6%9C%AC%E6%A9%9F%E5%9F%A0%E8%99%9F.md),
+so it doesn't collide with the other services when running side by side. To take
+a new port, check that table and register it with the admin site first. Swagger
 docs are served at `/api-docs`.
 
 All `/api/ingest/*` routes require a `TASK_SECRET` (via the `X-Task-Secret`
@@ -208,7 +209,8 @@ Two gaps these do **not** cover:
 
 Every upstream response, failed ones included, is stored as-is before it is parsed
 (`src/shared/bronze.ts`), in the format the five upstream services share (bronze v1,
-2026-11-11). `BRONZE_BUCKET` picks the bucket:
+2026-11-11), unless it matches the last one stored for that URL (see below).
+`BRONZE_BUCKET` picks the bucket:
 
 - `gs://oingg-gov-bronze` for production. Objects are never overwritten or deleted and
   stay in Standard storage.
@@ -216,6 +218,11 @@ Every upstream response, failed ones included, is stored as-is before it is pars
   (`scripts/bronze-dev-lifecycle.json` deletes objects after 30 days). Locally, set
   `BRONZE_BUCKET=oingg-gov-bronze-dev` and `GCS_ACCESS_TOKEN=$(gcloud auth
   print-access-token)`. Without a bucket, a local run stores nothing and warns.
+
+A local process connected to the production database refuses any ingest that would
+fetch upstream. Such a run would need the production bucket, which local runs must not
+write, while the DEV bucket deletes objects after 30 days. Run those ingests on Cloud
+Run. Replays still work locally because they only read stored objects.
 
 The format:
 
@@ -229,16 +236,48 @@ The format:
 - `export.ingestion_runs.raw_objects` lists the `gs://` URLs a run used. This is the
   only link from a dataset to its objects.
 
+Since 2026-11-12, a response is not stored again when the last object stored for the
+same URL has the same `sha256` and `http_status`. The run lists that object in
+`raw_objects` instead, so every run still points at its raw response. The status is part
+of the check because a replay returns the stored status.
+
+How the last object is found:
+
+- The path leaves out the query string, so the lookup reads `source_url` from the objects
+  used by this run and by the dataset's last 10 runs, newest first.
+- Only the latest object for that URL is compared, so A → B → A stores the third
+  response.
+- Objects in another bucket don't count.
+- If the lookup fails, the response is stored.
+- CBC responses carry the time they were prepared (`meta.prepared`), so their hash
+  differs on every request. For CBC only, the content is compared with that field
+  removed (`withoutPreparedTime` in `src/adapters/cbc/index.ts`). The stored bytes and
+  the `sha256` stay raw. When an object is reused, that run's own `prepared` time is
+  not kept, but it is the same as the fetch time recorded in `completed_at`.
+
+Duplicates stored before 2026-11-12 are kept.
+
+Registered exception to the data layering standard (approved 2026-11-12): the
+business-cycle reference dates carry three supplemented values and one correction taken
+from NDC press releases, not from an upstream response.
+
+- They are hand-checked constants in
+  `src/domains/businessCycleReferenceDate/supplements.ts`, so there is no bronze object
+  for them.
+- Each row lists the affected fields in `supplemented_fields` and the press release in
+  `supplement_source`.
+- A replay applies the constants of the code it runs, and git keeps their history.
+
 A failed store does not stop the ingest. It logs an ERROR starting with
 `[bronze-write-failed]`, which the `bronze_write_failures` log metric counts per
 `dataset` (`scripts/log-metric-bronze-write-failures.yaml`).
 `scripts/alert-policy-bronze-write-failures.json` emails the same channel as the 5xx
 alert.
 
-Objects written before bronze v1 (2026-11-11, revisions 00042 and 00043) stay where
-they are. They use `<job>/<Taipei date>/<HHmmss>_<sha>.<ext>`, the metadata names
-`url`, `status` and `last-modified`, and bare paths in `raw_objects`. Replay reads
-both formats.
+Only one object was written before bronze v1, by revision 00042 for run 404. On
+2026-11-12 it was copied to its v1 name and the old copy was deleted. Its fetch time is
+known only to the second, so the milliseconds are stored as `000`. Replay reads v1
+objects only.
 
 POSTing an ingest route with `{ "replayRunId": <run_id>, "force": true }` re-runs that
 run from its stored objects instead of the network, and records a new
@@ -289,10 +328,12 @@ Why the old config survived at all: the load was thinner than the schedule read.
 time only two jobs ran daily, and the rest were aligned to release dates spread across the
 month.
 
-Since 2026-10-30 the eleven small CBC/DGBAS/NDC/FRED jobs run every day between 03:02 and
+Since 2026-10-30 the small CBC/DGBAS/NDC/FRED jobs run every day between 03:02 and
 03:57, five minutes apart, so they share a warm instance in sequence rather than in
 parallel. A month-aligned job that hit a late file or a failed fetch waited a whole month
-for its next try; see the header of `scripts/scheduler.config.ts`. Most daily runs insert
+for its next try; see the header of `scripts/scheduler.config.ts`. The exception since
+2026-11-12 is the business-cycle reference dates: NDC adds a turning point once every few
+years, so that job runs on the 1st of each month. Most daily runs insert
 nothing (`skipDuplicates`). The heaviest of them, unemployment rate at ~12,000 rows, is
 below the ~30,000 rows of the 2026-09-25 test above.
 
