@@ -1,7 +1,7 @@
 import { readCleanEnv } from '@/shared/config';
 
 // 銅層 bucket（oingg-gov-bronze）的讀寫，走 GCS XML API：一個 PUT 就能連同自訂 metadata（x-goog-meta-*）
-// 寫入，不用為了兩個呼叫拉進 @google-cloud/storage。權杖向 Cloud Run 的 metadata server 拿；本機驗證時
+// 寫入，不用為了三個呼叫拉進 @google-cloud/storage。權杖向 Cloud Run 的 metadata server 拿；本機驗證時
 // 可以設 GCS_ACCESS_TOKEN（gcloud auth print-access-token）代替。
 const GCS_HOST = 'https://storage.googleapis.com';
 const METADATA_TOKEN_URL = 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token';
@@ -47,16 +47,27 @@ export interface GcsObject {
   metadata: Record<string, string>; // x-goog-meta-* 去掉前綴
 }
 
+const customMetadata = (headers: Headers): Record<string, string> => {
+  const metadata: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    if (key.startsWith('x-goog-meta-')) metadata[key.slice('x-goog-meta-'.length)] = value;
+  });
+  return metadata;
+};
+
 export const getObject = async (bucket: string, name: string): Promise<GcsObject> => {
   const response = await fetch(objectUrl(bucket, name), { headers: { Authorization: `Bearer ${await accessToken()}` } });
   if (!response.ok) throw new Error(`讀取 gs://${bucket}/${name} 失敗：HTTP ${response.status}`);
-  const metadata: Record<string, string> = {};
-  response.headers.forEach((value, key) => {
-    if (key.startsWith('x-goog-meta-')) metadata[key.slice('x-goog-meta-'.length)] = value;
-  });
   return {
     body: Buffer.from(await response.arrayBuffer()),
     contentType: response.headers.get('content-type') ?? 'application/octet-stream',
-    metadata,
+    metadata: customMetadata(response.headers),
   };
+};
+
+// 只讀 metadata 不下載內容（HEAD），銅層找同一網址上次存的檔時用。
+export const getObjectMetadata = async (bucket: string, name: string): Promise<Record<string, string>> => {
+  const response = await fetch(objectUrl(bucket, name), { method: 'HEAD', headers: { Authorization: `Bearer ${await accessToken()}` } });
+  if (!response.ok) throw new Error(`讀取 gs://${bucket}/${name} 的 metadata 失敗：HTTP ${response.status}`);
+  return customMetadata(response.headers);
 };
