@@ -202,8 +202,11 @@ Two gaps these do **not** cover:
   month's file with a 200; nothing 5xxs. `export.ingestion_runs.data_date` is where
   that shows, but it needs a query, not a Cloud Monitoring metric.
 - **A job other than fund-daily-nav that stopped being scheduled at all.** No requests
-  means nothing to alert on. Those sources can be re-run any time, so `pnpm
-  scheduler:check`, which compares intent against Cloud Scheduler, is the thing to run.
+  means nothing to alert on, so `pnpm scheduler:check`, which compares intent against
+  Cloud Scheduler, is the thing to run. Those sources can be re-run any time except
+  fund-basic-info: its fixed-path file holds only the current month's snapshot, so a stop
+  of more than about a month loses that month for good. Weekly runs give each file about
+  four tries, but a weekly job's gap is longer than these alerts can look back.
 
 ## Raw responses (bronze layer)
 
