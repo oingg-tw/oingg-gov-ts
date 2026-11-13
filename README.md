@@ -202,8 +202,11 @@ Two gaps these do **not** cover:
   month's file with a 200; nothing 5xxs. `export.ingestion_runs.data_date` is where
   that shows, but it needs a query, not a Cloud Monitoring metric.
 - **A job other than fund-daily-nav that stopped being scheduled at all.** No requests
-  means nothing to alert on. Those sources can be re-run any time, so `pnpm
-  scheduler:check`, which compares intent against Cloud Scheduler, is the thing to run.
+  means nothing to alert on, so `pnpm scheduler:check`, which compares intent against
+  Cloud Scheduler, is the thing to run. Those sources can be re-run any time except
+  fund-basic-info: its fixed-path file holds only the current month's snapshot, so a stop
+  of more than about a month loses that month for good. Weekly runs give each file about
+  four tries, but a weekly job's gap is longer than these alerts can look back.
 
 ## Raw responses (bronze layer)
 
@@ -251,15 +254,22 @@ How the last object is found:
 - If the lookup fails, the response is stored.
 - CBC responses carry the time they were prepared (`meta.prepared`), so their hash
   differs on every request. For CBC only, the content is compared with that field
-  removed (`withoutPreparedTime` in `src/adapters/cbc/index.ts`). The stored bytes and
+  removed (`withoutPreparedTime` in `src/adapters/cbc/index.ts`). This is a registered
+  exception to the shared rule, approved 2026-11-12. The stored bytes and
   the `sha256` stay raw. When an object is reused, that run's own `prepared` time is
   not kept, but it is the same as the fetch time recorded in `completed_at`.
 
 Duplicates stored before 2026-11-12 are kept.
 
 Registered exception to the data layering standard (approved 2026-11-12): the
-business-cycle reference dates carry three supplemented values and one correction taken
-from NDC press releases, not from an upstream response.
+business-cycle reference dates carry four supplemented values and one correction taken
+from two NDC press releases, not from an upstream response:
+
+- cycle 15's second trough, contraction months and total months;
+- cycle 16's first trough, which creates that row;
+- cycle 14's peak, corrected.
+
+How they are kept:
 
 - They are hand-checked constants in
   `src/domains/businessCycleReferenceDate/supplements.ts`, so there is no bronze object

@@ -86,7 +86,9 @@ export const schedulerConfig = {
     // 歷次景氣循環峰谷日期：不定期更新（國發會認定轉折點才補，幾年一次），十幾列。2026-11-12 使用者核准從每天
     // 改成每月 1 日：10/31 起每天抓 12 次都沒變，數據中台晚一個月拿到也沒差。
     { name: 'business-cycle-reference-date-monthly', path: '/api/ingest/business-cycle-reference-date', schedule: '33 3 1 * *' },
-    // 投信投顧公會 CSV（www.sitca.org.tw）
+    // 投信投顧公會 CSV（www.sitca.org.tw）。2026-11-12 網頁前端請保留這兩份：analysis-ts 退役後目前沒人讀，
+    // 但網站之後可能支援境內基金（持股、觀察清單），估值要用每日淨值。nav.csv 只有最近 2 個交易日、基本資料是
+    // 固定網址的當月快照，漏抓都補不回來；盤點「沒人讀就停」時不要停這兩支。
     { name: 'fund-basic-info-weekly', path: '/api/ingest/fund-basic-info', schedule: '27 3 * * 2' },
     { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '2 22 * * *' },
   ] satisfies SchedulerJobConfig[],

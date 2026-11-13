@@ -13,4 +13,6 @@ PRD 上線（使用者 2026-11-11 定的）：
 - 程式改壞可以先切流量回上一版、再回報使用者（使用者事先授權，只限切流量）：gcloud run services update-traffic oingg-gov-ts --region=asia-southeast1 --to-revisions=<上一版>=100。寫資料、觸發匯入、migration 照舊每次問。修好 push main 後，部署的 to-latest 步驟會把流量切回最新版。
 - 資料改壞用修好的版本重跑該資料集。平常只新增的來源要帶 force=true 才會蓋掉舊值。ingestion_runs.revision 記了每次匯入是哪一版寫的，用來圈範圍。
 
+Neon 分支（使用者 2026-11-12 定的）：從 PRD（production）開出來的分支，DEV、演練、回補都算，開完先重設它的 neondb_owner 密碼。Neon 開分支會沿用上層的角色密碼，DEV 帳密能連 PRD 就是這樣來的（11-12 重設 PRD 後才分開）。重設用 `neon api /projects/<專案>/branches/<分支>/roles/neondb_owner/reset_password -X POST`，新密碼從回應的 role.password 直接寫進要用的 env 檔，不要印。之後要換成 PRD 的分支，換上去時 gov-database-url 加新版、推新 revision（Cloud Run 只在開機時讀 Secret）。
+
 銅層（使用者 2026-11-11 定的，格式照五個上游服務共用的 v1，細節見 README）：每次向上游抓的回應，不管成功失敗，都先原樣存進 GCS 再解析（src/shared/bronze.ts）。2026-11-12 起（使用者定的），回應的 sha256 和狀態碼跟同一網址上次存的一樣就不再存，ingestion_runs.raw_objects 記上次那個檔；已經存的重複檔不刪。正式環境存 oingg-gov-bronze（只增不刪、長期保留，維持 Standard），本機寫 DEV 時存 oingg-gov-bronze-dev，不可以寫進正式 bucket。寫不進 GCS 不擋匯入，會記 [bronze-write-failed] 並告警。ingestion_runs.raw_objects 記這次用了哪些 gs:// 檔。解析寫錯要重做時，用 scripts/replayIngest.ts <dataset> --from --to，預設只看，加 --apply 才寫；它從銅層重跑、同鍵覆寫，不連上游（--apply 打 PRD 就是觸發 PRD 匯入，要問使用者）。新加上游請求一律走 fetchUpstream／keepUpstream，新 domain 要把 job 加進 src/shared/ingestDatasets.ts。19 支都已接上；接上之前的 SITCA 資料只能重做上游檔案裡還有的日期。
