@@ -18,15 +18,15 @@
  * 這 11 支都是秒級的小檔案，每天打沒有負擔。只有勞動部兩份（年更的現況快照）跟 322MB 的稅籍檔
  * 維持每月。名稱也從 -monthly/-quarterly 改成 -daily：reconcile 不會刪 job，舊名要手動
  * `gcloud scheduler jobs delete`。2026-11-12 管理站請各後台核對排程有沒有濫用，使用者再次確認其餘 10 支
- * 維持每天，只有景氣峰谷日期改回每月（理由見該 job），勞動部仲介三支停用（見 stoppedJobs）。
+ * 維持每天，只有景氣峰谷日期改回每月（理由見該 job），勞動部仲介三支停用；11-13 使用者裁定連程式一起刪掉
+ * （見 src/routes.ts 的移除紀錄）。
  * - fund-daily-nav 每天 22:00：SITCA 的 nav.csv 是 T 日晚間陸續發布，22:00 抓到的是 T 日部分
  *   （實測 2026-09-21 當天 467 檔）；檔案本身是 2 個交易日的滾動窗口，隔天 22:00 那次會把 T 日補齊
  *   （09-18 最後是 4445 檔），所以不用另外排隔天早上的補抓。
- * - 一支 long-running（labor-broker-tax-registration，每月 3 日；2026-11-12 起停用，設定留在 stoppedJobs）attemptDeadline 設到 Cloud Scheduler
- *   上限 30 分鐘：它要串流掃完財政部那份 322MB 稅籍檔（實測數分鐘），預設 180s 會讓 Scheduler 在
- *   job 還在跑時判定失敗並重試，造成重疊執行。其他 job 都在 10 秒內完成，維持預設 180s。
- *   （2026-10-07 之前還有兩支——company-profile-refresh-tracked-weekly 與
- *   company-industry-classification-monthly——隨公司產業分類整組移除。）
+ * - 全部 job 都在 10 秒內完成，attemptDeadline 用預設 180s。原本唯一的 long-running job 是每月 3 日的
+ *   labor-broker-tax-registration（串流掃財政部 322MB 稅籍檔，設到上限 1800s），2026-11-13 隨仲介三支刪掉；
+ *   2026-10-07 之前還有兩支（company-profile-refresh-tracked-weekly 與
+ *   company-industry-classification-monthly）隨公司產業分類整組移除。
  *
  * 新增的 cbc-policy-rate-daily 刻意每天跑而不是跟公債殖利率一樣每月 5 日：這份是「利率調整事件」
  * 序列（每列一次理監事會決議的生效日），用途是疊在股價上看事件，理監事會在 3/6/9/12 月中下旬
@@ -67,11 +67,10 @@ export const schedulerConfig = {
     { name: 'monthly-stock-market-summary-daily', path: '/api/ingest/monthly-stock-market-summary', schedule: '52 3 * * *' },
     { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '2 5 * * *' },
     // 美國政策利率跟 cbc-policy-rate 一樣每天跑：FOMC 一年只開 8 次，但決議當天就該反映，
-    // 而三個 CSV 都很小。05:12 是空檔（05:02 是 cbc-policy-rate、05:32 只有每月 3 日的稅籍檔）。
+    // 而三個 CSV 都很小。05:12 是空檔（05:02 是 cbc-policy-rate）。
     { name: 'us-policy-rate-daily', path: '/api/ingest/us-policy-rate', schedule: '12 5 * * *' },
     // 歐洲央行，同樣每天跑：ECB 管理委員會一年約 8 次貨幣政策會議，決議當天（台北時間晚上）
-    // 公布，隔天早上 05:22 抓到。四支序列都是小檔案。05:22 是空檔（05:02 央行、05:12 美國、
-    // 05:32 只有每月 3 日的稅籍檔）。
+    // 公布，隔天早上 05:22 抓到。四支序列都是小檔案。05:22 是空檔（05:02 央行、05:12 美國）。
     { name: 'ecb-policy-rate-daily', path: '/api/ingest/ecb-policy-rate', schedule: '22 5 * * *' },
     // FRED（美國聯準會）——BEA 每月底發布/修正 GDP，FRED 當天更新；這支每次整批重建
     // （見 quarterlyUsGnpDeflator/service.ts），所以修正值自然進來。
@@ -91,26 +90,5 @@ export const schedulerConfig = {
     // 固定網址的當月快照，漏抓都補不回來；盤點「沒人讀就停」時不要停這兩支。
     { name: 'fund-basic-info-weekly', path: '/api/ingest/fund-basic-info', schedule: '27 3 * * 2' },
     { name: 'fund-daily-nav-daily', path: '/api/ingest/fund-daily-nav', schedule: '2 22 * * *' },
-  ] satisfies SchedulerJobConfig[],
-  // 停用的 job：reconcile 只套用 jobs，這裡的不會建，端點、view 和已存的資料都留著。要恢復就搬回 jobs、
-  // 跑 pnpm scheduler:apply，再手動觸發一次。
-  // 勞動部仲介三支 2026-11-12 使用者核准停用（管理站請各後台核對排程有沒有濫用）：9/22 收進來是留給數據中台
-  // 串接，但 data-ts、data-rust 都沒讀這三個 view。三支每次都整份重寫現況，停掉不會丟歷史。
-  stoppedJobs: [
-    // 勞動部開放資料（apiservice.mol.gov.tw）——官方標示年更，但兩份都是「現況快照」（許可證會展延/
-    // 停業/廢止，評鑑會補上新年度），每月跑一次確保狀態新鮮，成本只有兩個幾百 KB 的 CSV。
-    { name: 'labor-broker-license-monthly', path: '/api/ingest/labor-broker-license', schedule: '2 6 5 * *' },
-    { name: 'labor-broker-evaluation-monthly', path: '/api/ingest/labor-broker-evaluation', schedule: '7 6 5 * *' },
-    // 唯一的 long-running job，理由見檔頭
-    // 要串流掃完整份 322MB 稅籍檔（實測數分鐘）。2026-10-07 之前 04:02 還有一支
-    // company-industry-classification 掃同一份檔案，這支刻意排在它後面一小時避免同時下載；
-    // 那支已移除，這個時間保留不動（沒有理由改，改了還要重新確認撞分鐘）。
-    {
-      name: 'labor-broker-tax-registration-monthly',
-      path: '/api/ingest/labor-broker-tax-registration',
-      // 05:32 不是 05:02——每天 05:02 有 cbc-policy-rate-daily，每月 3 號會撞在同一分鐘
-      schedule: '32 5 3 * *',
-      attemptDeadline: '1800s',
-    },
   ] satisfies SchedulerJobConfig[],
 };

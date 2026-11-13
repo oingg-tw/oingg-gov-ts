@@ -5,9 +5,6 @@ import { EXPORT_DATASET as ecbPolicyRate } from '@/domains/ecbPolicyRate/service
 import { EXPORT_DATASET as fundBasicInfo } from '@/domains/fundBasicInfo/service';
 import { EXPORT_DATASET as fundDailyNav } from '@/domains/fundDailyNav/service';
 import { EXPORT_DATASET as govBondYield10y } from '@/domains/govBondYield10y/service';
-import { EXPORT_DATASET as laborBrokerEvaluation } from '@/domains/laborBrokerEvaluation/service';
-import { EXPORT_DATASET as laborBrokerLicense } from '@/domains/laborBrokerLicense/service';
-import { EXPORT_DATASET as laborBrokerTaxRegistration } from '@/domains/laborBrokerTaxRegistration/service';
 import { EXPORT_DATASET as monthlyBusinessCycleIndicator } from '@/domains/monthlyBusinessCycleIndicator/service';
 import { EXPORT_DATASET as monthlyCpi } from '@/domains/monthlyCpi/service';
 import { EXPORT_DATASET as monthlyFiveMajorBankRate } from '@/domains/monthlyFiveMajorBankRate/service';
@@ -29,9 +26,6 @@ export const DATASET_BY_JOB: Record<string, string> = {
   'fund-basic-info': fundBasicInfo,
   'fund-daily-nav': fundDailyNav,
   'gov-bond-yield-10y': govBondYield10y,
-  'labor-broker-evaluation': laborBrokerEvaluation,
-  'labor-broker-license': laborBrokerLicense,
-  'labor-broker-tax-registration': laborBrokerTaxRegistration,
   'monthly-business-cycle-indicator': monthlyBusinessCycleIndicator,
   'monthly-cpi': monthlyCpi,
   'five-major-bank-rate': monthlyFiveMajorBankRate,
@@ -44,7 +38,7 @@ export const DATASET_BY_JOB: Record<string, string> = {
 };
 
 // 重跑一段日期（scripts/replayIngest.ts）：SITCA 兩支的檔案只涵蓋最近 2 個交易日／當月，區間裡每一次都要依序重跑；
-// 其他來源每個檔就是整段歷史或整份現況，只重跑最後一次就好（依序全跑，最後留下的也是最後那次）。
+// 其他來源每個檔就是整段歷史，只重跑最後一次就好（依序全跑，最後留下的也是最後那次）。
 const SNAPSHOT_WINDOW_DATASETS = new Set([fundDailyNav, fundBasicInfo]);
 export const pickRunsToReplay = <T>(dataset: string, runsInOrder: T[]): T[] =>
   SNAPSHOT_WINDOW_DATASETS.has(dataset) ? runsInOrder : runsInOrder.slice(-1);

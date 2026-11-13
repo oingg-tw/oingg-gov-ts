@@ -61,10 +61,11 @@ steps:
       # 任何服務帳號。2026-11-11 起多了銅層 bucket oingg-gov-bronze 的 objectCreator + objectViewer（只能
       # 新增和讀，不能覆寫或刪除），這是程式唯一呼叫的 GCP API。
       - --service-account=gov-ts-runtime@$PROJECT_ID.iam.gserviceaccount.com
-      # 那幾個跑很久的 ingest 端點（refresh-tracked 實測約 17 分鐘、company-industry-classification
-      # 要下載 322MB）遠超 Cloud Run 預設的 300 秒逾時，設到上限 3600 秒。Request-based billing
-      # （預設、沒有 --no-cpu-throttling）就夠：這個服務沒有請求之外還需要跑的背景工作。
-      - --timeout=3600
+      # 所有 ingest 都在秒級完成，用 Cloud Run 預設的 300 秒逾時，比 Scheduler 的 attemptDeadline（180s）長。
+      # 原本設到上限 3600 秒是給跑很久的端點（refresh-tracked 約 17 分鐘、下載 322MB 稅籍檔的兩支），
+      # 2026-10-07 和 2026-11-13 都刪掉了。300 要寫出來：deploy 沒帶 --timeout 會沿用上一版的 3600。
+      # Request-based billing（預設、沒有 --no-cpu-throttling）就夠：這個服務沒有請求之外還需要跑的背景工作。
+      - --timeout=300
       # 記憶體：兩個上限一定要一起設，只調一邊等於把一種 OOM 換成另一種（2026-09-24 sitca-ts
       # 實測並廣播）。--memory 管容器 RSS；NODE_OPTIONS 的 --max-old-space-size 管 V8 old-space，
       # 而 V8 預設是從容器記憶體推算（約一半），所以調大 --memory 不會讓 heap 跟著變大——
