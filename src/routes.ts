@@ -9,9 +9,6 @@ import quarterlyUsGnpDeflatorRouter from '@/domains/quarterlyUsGnpDeflator/route
 import usPolicyRateRouter from '@/domains/usPolicyRate/route';
 import ecbPolicyRateRouter from '@/domains/ecbPolicyRate/route';
 import monthlyStockMarketSummaryRouter from '@/domains/monthlyStockMarketSummary/route';
-import laborBrokerLicenseRouter from '@/domains/laborBrokerLicense/route';
-import laborBrokerEvaluationRouter from '@/domains/laborBrokerEvaluation/route';
-import laborBrokerTaxRegistrationRouter from '@/domains/laborBrokerTaxRegistration/route';
 import monthlyCpiRouter from '@/domains/monthlyCpi/route';
 import quarterlyGdpRouter from '@/domains/quarterlyGdp/route';
 import monthlyUnemploymentRateRouter from '@/domains/monthlyUnemploymentRate/route';
@@ -27,7 +24,7 @@ import { bronzeRun } from '@/shared/bronzeRun';
 // 2026-10-07 起 gov-ts 只有 /api/ingest，而且每一支都是排程觸發的——沒有查詢面，也沒有需要
 // 外部帶 body 呼叫的端點。
 //
-// 兩波移除的紀錄：
+// 三波移除的紀錄：
 // - 2026-10-02 拿掉 /api/query 的 7 支端點（companyProfile 查詢、companyBusinessItems、
 //   taxIndustryClassification）。查過 twse-ts / tpex-ts / mops-ts / analysis-ts / bff-ts 都沒有呼叫。
 // - 2026-10-07 拿掉公司產業分類整組（companyProfile 的 ingest、companyIndustryClassification、
@@ -35,10 +32,13 @@ import { bronzeRun } from '@/shared/bronzeRun';
 //   唯一的下游是 analysis-ts 的 Altman Z″ 製造業判斷；analysis-ts 2026-10-07 改用交易所類股，
 //   兩市統一，不再讀 gov 任何產業分類 view（理由是上市用稅籍、上櫃用交易所分類會讓兩市的
 //   「非製造業」定義不一致）。使用者裁定整組刪除。要重建的話 git 歷史在 7490e4d 之前。
+// - 2026-11-13 拿掉勞動部仲介三支（labor-broker-license、labor-broker-evaluation、labor-broker-tax-registration，
+//   連同勞動部和財政部稅籍檔的 adapter）。9/22 收進來是留給數據中台串接，但一直沒有服務讀；11-12 先停排程，
+//   使用者 11-13 裁定刪除。三個 export view 和底層表跑穩後另外 DROP。要重建的話看 17f93cb。
 //
 // ingestRouter 整層掛了 requireTaskSecret + ingestRateLimit（跟 oingg-mops-ts 的做法一致：掛在
 // router 層級一次涵蓋全部現有跟未來的 /api/ingest/*，不用每個 route.ts 各自標註）——這幾個端點會
-// 真的去打 CBC/主計總處/財政部等上游（labor-broker-tax-registration 甚至會下載 322MB 檔案），
+// 真的去打 CBC/主計總處/SITCA 等上游，
 // 沒有保護的話任何人知道 URL 就能觸發，見 README 的 Setup 一節（TASK_SECRET）。
 
 const router = Router();
@@ -58,9 +58,6 @@ ingestRouter.use(quarterlyUsGnpDeflatorRouter);
 ingestRouter.use(usPolicyRateRouter);
 ingestRouter.use(ecbPolicyRateRouter);
 ingestRouter.use(monthlyStockMarketSummaryRouter);
-ingestRouter.use(laborBrokerLicenseRouter);
-ingestRouter.use(laborBrokerEvaluationRouter);
-ingestRouter.use(laborBrokerTaxRegistrationRouter);
 ingestRouter.use(monthlyCpiRouter);
 ingestRouter.use(quarterlyGdpRouter);
 ingestRouter.use(monthlyUnemploymentRateRouter);
