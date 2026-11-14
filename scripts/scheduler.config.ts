@@ -19,7 +19,11 @@
  * 維持每月。名稱也從 -monthly/-quarterly 改成 -daily：reconcile 不會刪 job，舊名要手動
  * `gcloud scheduler jobs delete`。2026-11-12 管理站請各後台核對排程有沒有濫用，使用者再次確認其餘 10 支
  * 維持每天，只有景氣峰谷日期改回每月（理由見該 job），勞動部仲介三支停用；11-13 使用者裁定連程式一起刪掉
- * （見 src/routes.ts 的移除紀錄）。
+ * （見 src/routes.ts 的移除紀錄）。2026-11-14 使用者決定 03:02～05:22 這 13 支週末不跑（`* * 1-5`）：PRD 實測
+ * 週末的匯入從沒推進過資料日期（批次每天跑以來 3 個週末、淨值 10 個週末），這些來源也都留整段歷史，
+ * 週五白天發布的改成週一清晨進來。名稱照舊用 -daily，管理站首頁照名稱結尾判斷優先度。fund-daily-nav
+ * 照每天跑：nav.csv 只留 2 個交易日，週末那兩次讓週四、週五的淨值多兩次機會，「25 小時沒有成功」的告警
+ * 也拉不長（見 README 的告警段落）。
  * - fund-daily-nav 每天 22:00：SITCA 的 nav.csv 是 T 日晚間陸續發布，22:00 抓到的是 T 日部分
  *   （實測 2026-09-21 當天 467 檔）；檔案本身是 2 個交易日的滾動窗口，隔天 22:00 那次會把 T 日補齊
  *   （09-18 最後是 4445 檔），所以不用另外排隔天早上的補抓。
@@ -28,7 +32,7 @@
  *   2026-10-07 之前還有兩支（company-profile-refresh-tracked-weekly 與
  *   company-industry-classification-monthly）隨公司產業分類整組移除。
  *
- * 新增的 cbc-policy-rate-daily 刻意每天跑而不是跟公債殖利率一樣每月 5 日：這份是「利率調整事件」
+ * 新增的 cbc-policy-rate-daily 刻意每天跑（2026-11-14 起週末不跑）而不是跟公債殖利率一樣每月 5 日：這份是「利率調整事件」
  * 序列（每列一次理監事會決議的生效日），用途是疊在股價上看事件，理監事會在 3/6/9/12 月中下旬
  * 開會，月初才抓會晚兩週以上；請求本身是秒級的 JSON，每天打沒有成本。
 
@@ -59,29 +63,30 @@ export const schedulerConfig = {
   jobs: [
     // 央行統計資料庫（cpx.cbc.gov.tw）——月報系列（公債殖利率、貨幣總計數、匯率）都是隨《金融統計
     // 月報》在每月 25 日前後一起更新上個月的資料；匯率雖是日資料但也是這個節奏批次補上（見
-    // dailyUsdTwdRate/route.ts）。每天打，月報哪天出來隔天清晨就進來（2026-10-30 起，理由見檔頭）。
-    { name: 'gov-bond-yield-10y-daily', path: '/api/ingest/gov-bond-yield-10y', schedule: '2 3 * * *' },
-    { name: 'five-major-bank-rate-daily', path: '/api/ingest/five-major-bank-rate', schedule: '57 3 * * *' },
-    { name: 'monthly-monetary-aggregate-daily', path: '/api/ingest/monthly-monetary-aggregate', schedule: '37 3 * * *' },
-    { name: 'daily-usd-twd-rate-daily', path: '/api/ingest/daily-usd-twd-rate', schedule: '42 3 * * *' },
-    { name: 'monthly-stock-market-summary-daily', path: '/api/ingest/monthly-stock-market-summary', schedule: '52 3 * * *' },
-    { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '2 5 * * *' },
-    // 美國政策利率跟 cbc-policy-rate 一樣每天跑：FOMC 一年只開 8 次，但決議當天就該反映，
+    // dailyUsdTwdRate/route.ts）。平日打，月報出來後的下一個平日清晨就進來（2026-10-30 起每天打，
+    // 2026-11-14 起週末不打，理由見檔頭）。
+    { name: 'gov-bond-yield-10y-daily', path: '/api/ingest/gov-bond-yield-10y', schedule: '2 3 * * 1-5' },
+    { name: 'five-major-bank-rate-daily', path: '/api/ingest/five-major-bank-rate', schedule: '57 3 * * 1-5' },
+    { name: 'monthly-monetary-aggregate-daily', path: '/api/ingest/monthly-monetary-aggregate', schedule: '37 3 * * 1-5' },
+    { name: 'daily-usd-twd-rate-daily', path: '/api/ingest/daily-usd-twd-rate', schedule: '42 3 * * 1-5' },
+    { name: 'monthly-stock-market-summary-daily', path: '/api/ingest/monthly-stock-market-summary', schedule: '52 3 * * 1-5' },
+    { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '2 5 * * 1-5' },
+    // 美國政策利率跟 cbc-policy-rate 一樣平日每天跑：FOMC 一年只開 8 次，但決議當天就該反映，
     // 而三個 CSV 都很小。05:12 是空檔（05:02 是 cbc-policy-rate）。
-    { name: 'us-policy-rate-daily', path: '/api/ingest/us-policy-rate', schedule: '12 5 * * *' },
-    // 歐洲央行，同樣每天跑：ECB 管理委員會一年約 8 次貨幣政策會議，決議當天（台北時間晚上）
+    { name: 'us-policy-rate-daily', path: '/api/ingest/us-policy-rate', schedule: '12 5 * * 1-5' },
+    // 歐洲央行，同樣平日每天跑：ECB 管理委員會一年約 8 次貨幣政策會議，決議當天（台北時間晚上）
     // 公布，隔天早上 05:22 抓到。四支序列都是小檔案。05:22 是空檔（05:02 央行、05:12 美國）。
-    { name: 'ecb-policy-rate-daily', path: '/api/ingest/ecb-policy-rate', schedule: '22 5 * * *' },
+    { name: 'ecb-policy-rate-daily', path: '/api/ingest/ecb-policy-rate', schedule: '22 5 * * 1-5' },
     // FRED（美國聯準會）——BEA 每月底發布/修正 GDP，FRED 當天更新；這支每次整批重建
     // （見 quarterlyUsGnpDeflator/service.ts），所以修正值自然進來。
-    { name: 'quarterly-us-gnp-deflator-daily', path: '/api/ingest/quarterly-us-gnp-deflator', schedule: '47 3 * * *' },
+    { name: 'quarterly-us-gnp-deflator-daily', path: '/api/ingest/quarterly-us-gnp-deflator', schedule: '47 3 * * 1-5' },
     // 主計總處固定路徑 XML（ws.dgbas.gov.tw）
-    { name: 'monthly-cpi-daily', path: '/api/ingest/monthly-cpi', schedule: '7 3 * * *' },
-    { name: 'monthly-unemployment-rate-daily', path: '/api/ingest/monthly-unemployment-rate', schedule: '12 3 * * *' },
-    { name: 'quarterly-gdp-daily', path: '/api/ingest/quarterly-gdp', schedule: '17 3 * * *' },
+    { name: 'monthly-cpi-daily', path: '/api/ingest/monthly-cpi', schedule: '7 3 * * 1-5' },
+    { name: 'monthly-unemployment-rate-daily', path: '/api/ingest/monthly-unemployment-rate', schedule: '12 3 * * 1-5' },
+    { name: 'quarterly-gdp-daily', path: '/api/ingest/quarterly-gdp', schedule: '17 3 * * 1-5' },
     // 國發會景氣指標 ZIP（ws.ndc.gov.tw），官方每月 27 日發布新聞稿，但開放資料檔會晚一點才換
     // （2026-10-28 03:22 抓到的還是舊檔）。
-    { name: 'monthly-business-cycle-indicator-daily', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '22 3 * * *' },
+    { name: 'monthly-business-cycle-indicator-daily', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '22 3 * * 1-5' },
     // 歷次景氣循環峰谷日期：不定期更新（國發會認定轉折點才補，幾年一次），十幾列。2026-11-12 使用者核准從每天
     // 改成每月 1 日：10/31 起每天抓 12 次都沒變，數據中台晚一個月拿到也沒差。
     { name: 'business-cycle-reference-date-monthly', path: '/api/ingest/business-cycle-reference-date', schedule: '33 3 1 * *' },
