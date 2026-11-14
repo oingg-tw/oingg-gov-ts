@@ -340,9 +340,10 @@ month.
 
 Since 2026-10-30 the thirteen small CBC/DGBAS/NDC/FRED/ECB jobs run between 03:02 and
 05:22, at least five minutes apart, so they share a warm instance in sequence rather than
-in parallel. They ran every day at first and have skipped weekends since 2026-11-14: no
-weekend run had ever brought a newer data date, and these sources keep their full
-history, so a Friday release now arrives on Monday morning. A month-aligned job that hit a late file or a failed fetch waited a whole month
+in parallel. They ran every day at first and have skipped Sundays since 2026-11-14. The
+Saturday run stays so that a release from Friday evening is visible over the weekend;
+no Sunday run had ever brought a newer data date, and these sources keep their full
+history. A month-aligned job that hit a late file or a failed fetch waited a whole month
 for its next try; see the header of `scripts/scheduler.config.ts`. The exception since
 2026-11-12 is the business-cycle reference dates: NDC adds a turning point once every few
 years, so that job runs on the 1st of each month. Most runs insert
