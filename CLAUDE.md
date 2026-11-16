@@ -1,4 +1,4 @@
-生態系官方詞彙表（export view、欄位命名的唯一依據）：C:\Users\Chuia\Documents\oingg-data-rust\UBIQUITOUS_LANGUAGE.md（2026-10-27 起由 oingg-data-rust 維護，新詞彙、命名缺口找它）
+生態系官方詞彙表（export view、欄位命名的唯一依據）：C:\Users\Chuia\Documents\oingg-data-rust\docs\UBIQUITOUS_LANGUAGE.md（2026-10-27 起由 oingg-data-rust 維護，新詞彙、命名缺口找它）
 
 格式原則（使用者 2026-11-03 定的）：數字存 numeric/int、日期存 date、時間存 timestamptz、布林存 boolean、缺值存 null；代碼（統編、ISIN、許可證號、行業代碼）存字串。只要不合理就改，不接受「沒壞就不改」；刻意保留只有兩種理由：是代碼，或數值超過 2^53／15 位有效數字。來源解析不了就丟錯，不要安靜跳過、補值或存 null。
 
