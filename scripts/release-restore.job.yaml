@@ -1,0 +1,41 @@
+# 固定的「切回最新版」Job：退版之後把流量接回最新的可用版本。不收參數。
+# 本機帳號 gov-local-ops 只能執行它，不能改它、不能帶覆寫參數。
+# 照抄管理站 repo（oingg-admin-vue）deploy/release-restore.job.yaml（d78a07b）。用法、權限見 CLAUDE.md 的「PRD 上線」和「本機 gcloud」。
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: release-restore
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+spec:
+  template:
+    spec:
+      taskCount: 1
+      template:
+        spec:
+          serviceAccountName: release-job@oingg-gov.iam.gserviceaccount.com
+          maxRetries: 0
+          timeoutSeconds: '300'
+          containers:
+            - image: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+              command: [bash, -c]
+              args:
+                - |
+                  set -eu
+                  gcloud run services update-traffic "$SERVICE" --region="$REGION" --to-latest --format=none
+                  now=$(gcloud run services list --region="$REGION" --filter="metadata.name~^${SERVICE}\$" --flatten=status.traffic \
+                    --format='value(status.traffic.percent,status.traffic.revisionName)' | awk '$1 == 100 { print $2 }')
+                  echo "完成：流量 100% 在最新版 $now"
+              env:
+                - name: SERVICE
+                  value: oingg-gov-ts
+                - name: REGION
+                  value: asia-southeast1
+                - name: CLOUDSDK_CORE_PROJECT
+                  value: oingg-gov
+                - name: CLOUDSDK_CORE_DISABLE_PROMPTS
+                  value: '1'
+              resources:
+                limits:
+                  cpu: 1000m
+                  memory: 512Mi
