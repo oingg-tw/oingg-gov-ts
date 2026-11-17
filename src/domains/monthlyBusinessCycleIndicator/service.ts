@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchBusinessCycleIndicatorCsv } from '@/adapters/ndc/client';
 import { parseMonthlyBusinessCycleIndicator } from '@/domains/monthlyBusinessCycleIndicator/parser';
 import type { MonthlyBusinessCycleIndicatorPoint } from '@/domains/monthlyBusinessCycleIndicator/types';
@@ -30,8 +30,8 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyB
   }
 };
 
-// 跟 quarterlyGdp/monthlyUnemploymentRate 一樣用整批寫入（見那兩個 service.ts 的說明）——這個
-// domain 每次 ingest 只有 ~540 筆（一個月一列，沒有 category 維度），量不大，但統一寫法比較好維護。
+// 不 force 時同鍵覆寫（shared/upsertRows.ts）：國發會每個月重算整段指標，舊月份的值會變。force 時整表刪除重建。
+// 每次 ingest 約 540 筆（一個月一列，沒有 category 維度）。
 export const ingestMonthlyBusinessCycleIndicator = async (force = false): Promise<IngestMonthlyBusinessCycleIndicatorResult> => {
   let csv: string;
   try {
@@ -69,9 +69,9 @@ export const ingestMonthlyBusinessCycleIndicator = async (force = false): Promis
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.monthlyBusinessCycleIndicator.createMany({ data: rows, skipDuplicates: true }), data);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('MonthlyBusinessCycleIndicator', ['year', 'month'], data);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

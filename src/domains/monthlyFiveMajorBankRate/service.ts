@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseMonthlyFiveMajorBankRate } from '@/domains/monthlyFiveMajorBankRate/parser';
 import type { MonthlyFiveMajorBankRatePoint } from '@/domains/monthlyFiveMajorBankRate/types';
@@ -32,7 +32,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyF
 };
 
 // 跟 govBondYield10y 同一套寫法：單次請求就拿到 1987-M1 至今整段月資料，整批寫入；force 時刪除重建，
-// 不 force 時用 createMany({ skipDuplicates: true }) 讓唯一約束處理「已存在就跳過」。476 列。
+// 不 force 時同鍵覆寫（shared/upsertRows.ts）。476 列。
 export const ingestMonthlyFiveMajorBankRate = async (force = false): Promise<IngestMonthlyFiveMajorBankRateResult> => {
   let raw;
   try {
@@ -68,12 +68,9 @@ export const ingestMonthlyFiveMajorBankRate = async (force = false): Promise<Ing
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked(
-      (rows) => prisma.monthlyFiveMajorBankRate.createMany({ data: rows, skipDuplicates: true }),
-      data
-    );
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('MonthlyFiveMajorBankRate', ['year', 'month'], data);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

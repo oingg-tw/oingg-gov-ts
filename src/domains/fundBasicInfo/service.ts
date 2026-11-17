@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchSitcaCsv } from '@/adapters/sitca/client';
 import { parseFundBasicInfo } from '@/domains/fundBasicInfo/parser';
 import type { FundBasicInfoPoint } from '@/domains/fundBasicInfo/types';
@@ -38,8 +38,8 @@ const recordIngestionRun = async (
 };
 
 // 跟 quarterlyGdp 等 domain 一樣用整批寫入（見 quarterlyGdp/service.ts 的說明）。force 時只刪這份檔案裡
-// 有的年月再重寫——來源只有當月快照，整表刪除會把來源補不回來的過去月份一起刪掉。不 force 時用
-// createMany({ skipDuplicates: true }) 讓 (year, month, isin_code) 的唯一約束處理「已存在就跳過」。
+// 有的年月再重寫——來源只有當月快照，整表刪除會把來源補不回來的過去月份一起刪掉。不 force 時同鍵覆寫
+// （shared/upsertRows.ts），衝突鍵是 (year, month, isin_code) 的唯一約束：公會更正當月快照時會進來。
 export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasicInfoResult> => {
   let csv: string;
   let sourceLastModified: Date | null;
@@ -92,9 +92,9 @@ export const ingestFundBasicInfo = async (force = false): Promise<IngestFundBasi
     fetchedCount = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.fundBasicInfo.createMany({ data: rows, skipDuplicates: true }), data);
-    fetchedCount = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('FundBasicInfo', ['year', 'month', 'isinCode'], data);
+    fetchedCount = inserted + updated;
+    skipped = points.length - fetchedCount;
   }
 
   await recordIngestionRun('success', points, sourceLastModified);

@@ -10,7 +10,7 @@ registry.registerPath({
   path: '/api/ingest/monthly-stock-market-summary',
   summary: '向央行統計資料庫抓取上市股票市場月統計（含加權指數月平均，1987 年起）',
   description:
-    '透過 CBC 統計資料庫 API（FileName=EG27M01en，"Stock Market-B.Transactions of Listed Stock and Stock Price By Period"）抓取：上市公司家數、上市股票總面值/總市值/當月總成交值/日均成交值（百萬新台幣）、加權股價指數月平均（1966=100）及其年增率。1987-05 起，比 twse-ts 的 daily_taiex_index（1999 起）早 12 年，用途是把大盤歷史往前推、以及跟同為月頻率的總經指標對照；它是月平均不是月底收盤，跟日線比較時要注意。單次請求回傳整段歷史。依 year + month 為主鍵；已存在且未帶 force 就跳過。',
+    '透過 CBC 統計資料庫 API（FileName=EG27M01en，"Stock Market-B.Transactions of Listed Stock and Stock Price By Period"）抓取：上市公司家數、上市股票總面值/總市值/當月總成交值/日均成交值（百萬新台幣）、加權股價指數月平均（1966=100）及其年增率。1987-05 起，比 twse-ts 的 daily_taiex_index（1999 起）早 12 年，用途是把大盤歷史往前推、以及跟同為月頻率的總經指標對照；它是月平均不是月底收盤，跟日線比較時要注意。單次請求回傳整段歷史。依 year + month 為主鍵；未帶 force 時同鍵覆寫（新鍵插入、值變了才更新、沒變的跳過）。',
   tags: ['Ingestion'],
   security: [{ TaskSecret: [] }],
   request: { body: { required: false, content: { 'application/json': { schema: forceIngestBodySchema } } } },

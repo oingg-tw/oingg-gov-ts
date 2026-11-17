@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchDgbasXml } from '@/adapters/dgbas/client';
 import { parseMonthlyCpi } from '@/domains/monthlyCpi/parser';
 import type { MonthlyCpiPoint } from '@/domains/monthlyCpi/types';
@@ -36,8 +36,8 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyC
 
 // 跟 quarterlyGdp/monthlyUnemploymentRate 一樣用整批寫入，不是逐點 findUnique+upsert——這個 domain
 // 4,376 筆，逐點兩次資料庫往返在 Neon 的網路延遲下實測跑了近 10 分鐘，改成 createMany 之後幾秒鐘
-// 就能跑完（見 quarterlyGdp/service.ts 的說明，同一套理由）。force 時整批刪除重建，不 force 時用
-// createMany({ skipDuplicates: true }) 讓 (year, month, category) 的唯一約束處理「已存在就跳過」。
+// 就能跑完（見 quarterlyGdp/service.ts 的說明，同一套理由）。force 時整批刪除重建，不 force 時同鍵覆寫
+// （shared/upsertRows.ts），衝突鍵是 (year, month, category)。
 export const ingestMonthlyCpi = async (force = false): Promise<IngestMonthlyCpiResult> => {
   let xml: string;
   try {
@@ -64,9 +64,9 @@ export const ingestMonthlyCpi = async (force = false): Promise<IngestMonthlyCpiR
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.monthlyCpi.createMany({ data: rows, skipDuplicates: true }), data);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('MonthlyCpi', ['year', 'month', 'category'], data);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

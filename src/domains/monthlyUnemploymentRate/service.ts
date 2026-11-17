@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchDgbasXml } from '@/adapters/dgbas/client';
 import { parseMonthlyUnemploymentRate } from '@/domains/monthlyUnemploymentRate/parser';
 import type { MonthlyUnemploymentRatePoint } from '@/domains/monthlyUnemploymentRate/types';
@@ -32,7 +32,8 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyU
 };
 
 // 這個 domain 有 21 個類別 x ~580 個月 ≈ 12,000+ 筆，逐筆 findUnique+upsert（govBondYield10y/
-// monthlyCpi 的寫法）在這個量級下會太慢——理由跟 quarterlyGdp/service.ts 一樣，改用整批寫入。
+// monthlyCpi 的寫法）在這個量級下會太慢——理由跟 quarterlyGdp/service.ts 一樣，改用整批寫入。不 force 時
+// 同鍵覆寫（shared/upsertRows.ts）。
 export const ingestMonthlyUnemploymentRate = async (force = false): Promise<IngestMonthlyUnemploymentRateResult> => {
   let xml: string;
   try {
@@ -59,9 +60,9 @@ export const ingestMonthlyUnemploymentRate = async (force = false): Promise<Inge
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.monthlyUnemploymentRate.createMany({ data: rows, skipDuplicates: true }), data);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('MonthlyUnemploymentRate', ['year', 'month', 'category'], data);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseMonthlyMonetaryAggregate } from '@/domains/monthlyMonetaryAggregate/parser';
 import type { MonthlyMonetaryAggregatePoint } from '@/domains/monthlyMonetaryAggregate/types';
@@ -29,9 +29,8 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyM
   }
 };
 
-// 單次請求回傳 1987-M5 至今整段月資料（471 筆），整批寫入，寫法同 govBondYield10y。注意 CBC 會回頭
-// 修正近期月份的數字（金融統計月報有修正值），而不帶 force 的路徑是 skipDuplicates、不會覆寫已存在
-// 的月份——排程 job 的 body 是 {}，所以修正值不會自動進來，需要時手動打一次 force=true 整批重建。
+// 單次請求回傳 1987-M5 至今整段月資料（471 筆），整批寫入，寫法同 govBondYield10y。CBC 會回頭修正近期
+// 月份的數字（金融統計月報有修正值）：不帶 force 時同鍵覆寫（shared/upsertRows.ts），修正值每天自動進來。
 export const ingestMonthlyMonetaryAggregate = async (force = false): Promise<IngestMonthlyMonetaryAggregateResult> => {
   let raw;
   try {
@@ -56,9 +55,9 @@ export const ingestMonthlyMonetaryAggregate = async (force = false): Promise<Ing
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.monthlyMonetaryAggregate.createMany({ data: rows, skipDuplicates: true }), points);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('MonthlyMonetaryAggregate', ['year', 'month'], points);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);
