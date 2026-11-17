@@ -18,7 +18,7 @@ PRD 上線（使用者 2026-11-11 定的）：
 - 改了解析讓存的值變了：上線前抽樣比對新舊值，寫出影響範圍（view、欄位、日期或期別、代號）；上線後把範圍通知數據中台（oingg-data-rust），由它決定要不要記規則變更，gov 不送規則變更紀錄。
 - 部署後第一輪跑完先自己核對（筆數、空值、跟上一輪的差異：push main 前先跑 `npx tsx --env-file=<env 檔> scripts/postDeployCompare.ts capture`，第一輪跑完再跑 `diff`），再通知下游和管理站；「修好了」的通知要寫資料集和代號。不是每天跑的排程要手動觸發才有第一輪。
 - 程式改壞先切流量回上一版、再回報使用者（恢復逐次問之後，這條也照樣事先授權）：gcloud run services update-traffic oingg-gov-ts --region=asia-southeast1 --to-revisions=<上一版>=100。修好 push main 後，部署的 to-latest 步驟會把流量切回最新版。
-- 資料改壞用修好的版本重跑該資料集。平常只新增的來源要帶 force=true 才會蓋掉舊值。ingestion_runs.revision 記了每次匯入是哪一版寫的，用來圈範圍。
+- 資料改壞用修好的版本重跑該資料集。不帶 force 是同鍵覆寫（2026-11-17 起，值變了才更新），重跑就會蓋掉舊值；淨值例外，只新增，要帶 force=true 才會蓋掉。force 是先刪再寫（基金兩支只刪檔案裡有的年月、日期）。ingestion_runs.revision 記了每次匯入是哪一版寫的，用來圈範圍。
 
 Neon 分支（使用者 2026-11-12 定的）：從 PRD（production）開出來的分支，DEV、演練、回補都算，開完先重設它的 neondb_owner 密碼。Neon 開分支會沿用上層的角色密碼，DEV 帳密能連 PRD 就是這樣來的（11-12 重設 PRD 後才分開）。重設用 `neon api /projects/<專案>/branches/<分支>/roles/neondb_owner/reset_password -X POST`，新密碼從回應的 role.password 直接寫進要用的 env 檔，不要印。之後要換成 PRD 的分支，換上去時 gov-database-url 加新版、推新 revision（Cloud Run 只在開機時讀 Secret）。
 

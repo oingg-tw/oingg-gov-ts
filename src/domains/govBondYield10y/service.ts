@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseMonthlyGovBondYield10y } from '@/domains/govBondYield10y/parser';
 import type { MonthlyGovBondYield10yPoint } from '@/domains/govBondYield10y/types';
@@ -40,8 +40,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyG
 // quarterlyGdp/monthlyUnemploymentRate 一樣用整批寫入，不是逐月 findUnique+upsert——後者在 Neon
 // 的網路延遲下每筆兩次往返，量一大就很慢（monthlyCpi 4,376 筆實測跑了近 10 分鐘，這個 domain 只有
 // 369 筆問題不大，但改成同一套寫法純粹圖一致，之後有人抄這個 domain 當範本不會抄到慢的版本）。
-// force 時整批刪除重建，不 force 時用 createMany({ skipDuplicates: true }) 讓唯一約束處理「已存在
-// 就跳過」。
+// force 時整批刪除重建，不 force 時同鍵覆寫（shared/upsertRows.ts）。
 export const ingestMonthlyGovBondYield10y = async (force = false): Promise<IngestGovBondYield10yResult> => {
   let raw;
   try {
@@ -68,9 +67,9 @@ export const ingestMonthlyGovBondYield10y = async (force = false): Promise<Inges
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.monthlyGovBondYield10y.createMany({ data: rows, skipDuplicates: true }), data);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('MonthlyGovBondYield10y', ['year', 'month'], data);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

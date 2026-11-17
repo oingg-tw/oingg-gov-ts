@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchDgbasXml } from '@/adapters/dgbas/client';
 import { parseQuarterlyGdp } from '@/domains/quarterlyGdp/parser';
 import type { QuarterlyGdpPoint } from '@/domains/quarterlyGdp/types';
@@ -34,8 +34,8 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: Quarterl
 // 跟 monthlyCpi/govBondYield10y 逐點 findUnique+upsert 的寫法不同——GDP 一次 ingest 有 ~2,200 筆，
 // 逐筆兩次資料庫往返（先查存不存在、再寫）在 Neon 的網路延遲下會拖到分鐘等級（CPI 4,376 筆實測跑了
 // 將近 10 分鐘）。這裡改成整批寫入：force 時整批刪除重建（一次 DELETE + 一次 INSERT），不 force 時
-// 用 createMany({ skipDuplicates: true }) 讓資料庫的唯一約束直接處理「已存在就跳過」，一次 INSERT
-// 打完，不用先查一輪存不存在。
+// 同鍵覆寫（shared/upsertRows.ts）：一次 INSERT ... ON CONFLICT 打完，不用先查一輪存不存在；主計總處
+// 修正前幾季時會進來。
 export const ingestQuarterlyGdp = async (force = false): Promise<IngestQuarterlyGdpResult> => {
   let xml: string;
   try {
@@ -68,9 +68,9 @@ export const ingestQuarterlyGdp = async (force = false): Promise<IngestQuarterly
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.quarterlyGdp.createMany({ data: rows, skipDuplicates: true }), data);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('QuarterlyGdp', ['year', 'quarter', 'category'], data);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

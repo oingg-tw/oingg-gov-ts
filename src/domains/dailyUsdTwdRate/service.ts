@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseDailyUsdTwdRate } from '@/domains/dailyUsdTwdRate/parser';
 import type { DailyUsdTwdRatePoint } from '@/domains/dailyUsdTwdRate/types';
@@ -27,7 +27,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: DailyUsd
 };
 
 // 單次請求回傳 1992-01-04 至今全部交易日（約 9,000 筆），整批寫入，寫法同 govBondYield10y。歷史匯率
-// 是成交事實，不會被事後修正，不帶 force 的 skipDuplicates 路徑足夠。
+// 是成交事實，一般不會修正；不帶 force 時同鍵覆寫（shared/upsertRows.ts），真的修了也會進來。
 export const ingestDailyUsdTwdRate = async (force = false): Promise<IngestDailyUsdTwdRateResult> => {
   let raw;
   try {
@@ -52,9 +52,9 @@ export const ingestDailyUsdTwdRate = async (force = false): Promise<IngestDailyU
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.dailyUsdTwdRate.createMany({ data: rows, skipDuplicates: true }), points);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('DailyUsdTwdRate', ['tradeDate'], points);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

@@ -1,5 +1,5 @@
 import prisma from '@/adapters/prisma/index';
-import { createManyChunked } from '@/shared/createManyChunked';
+import { upsertRows } from '@/shared/upsertRows';
 import { fetchCbcItem } from '@/adapters/cbc';
 import { parseMonthlyStockMarketSummary } from '@/domains/monthlyStockMarketSummary/parser';
 import type { MonthlyStockMarketSummaryPoint } from '@/domains/monthlyStockMarketSummary/types';
@@ -29,7 +29,7 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyS
 };
 
 // 單次請求回傳 1987-M5 至今整段月資料（471 筆），整批寫入，寫法同 govBondYield10y。這些是月底/月內
-// 的統計事實，CBC 不太會事後修正，不帶 force 的 skipDuplicates 路徑足夠。
+// 的統計事實，CBC 不太會事後修正；不帶 force 時同鍵覆寫（shared/upsertRows.ts），真的修了也會進來。
 export const ingestMonthlyStockMarketSummary = async (force = false): Promise<IngestMonthlyStockMarketSummaryResult> => {
   let raw;
   try {
@@ -54,9 +54,9 @@ export const ingestMonthlyStockMarketSummary = async (force = false): Promise<In
     fetched = points.length;
     skipped = 0;
   } else {
-    const insertedCount = await createManyChunked((rows) => prisma.monthlyStockMarketSummary.createMany({ data: rows, skipDuplicates: true }), points);
-    fetched = insertedCount;
-    skipped = points.length - insertedCount;
+    const { inserted, updated } = await upsertRows('MonthlyStockMarketSummary', ['year', 'month'], points);
+    fetched = inserted + updated;
+    skipped = points.length - fetched;
   }
 
   await recordIngestionRun('success', points);

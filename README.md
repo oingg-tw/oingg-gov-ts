@@ -346,8 +346,9 @@ no Sunday run had ever brought a newer data date, and these sources keep their f
 history. A month-aligned job that hit a late file or a failed fetch waited a whole month
 for its next try; see the header of `scripts/scheduler.config.ts`. The exception since
 2026-11-12 is the business-cycle reference dates: NDC adds a turning point once every few
-years, so that job runs on the 1st of each month. Most runs insert
-nothing (`skipDuplicates`). The heaviest of them, unemployment rate at ~12,000 rows, is
+years, so that job runs on the 1st of each month. Most runs write
+nothing: since 2026-11-17 the write is an upsert that touches only new keys and rows whose
+values changed (`src/shared/upsertRows.ts`). The heaviest of them, unemployment rate at ~12,000 rows, is
 below the ~30,000 rows of the 2026-09-25 test above.
 
 `concurrency` is still Cloud Run's default of 80. In practice it is always 1 — jobs are
