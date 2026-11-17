@@ -267,7 +267,9 @@ function main() {
       runGcloud(args);
       console.log(`[reconcile] ${job.name}: done.`);
     } catch (error) {
-      console.error(`[reconcile] ${job.name} failed: ${(error as Error).message}`);
+      // 錯誤訊息帶完整指令列，裡面有 X-Task-Secret 的值：印出前遮掉，免得進 log 或對話（2026-11-17，同 fundclear 9162c72）。
+      const message = (error as Error).message;
+      console.error(`[reconcile] ${job.name} failed: ${cachedTaskSecret ? message.replaceAll(cachedTaskSecret, '<redacted>') : message}`);
     }
   }
   console.log('\n[reconcile] Done. Re-run without --apply to confirm everything now matches.');
