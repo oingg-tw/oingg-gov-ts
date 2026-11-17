@@ -38,6 +38,16 @@ PRD 上線（使用者 2026-11-11 定的）：
   3. gcloud org-policies delete 恢復政策，再用 --effective 確認回到 enforce: true。
   4. 刪舊金鑰。
 
-Neon 分支（使用者 2026-11-12 定的）：從 PRD（production）開出來的分支，DEV、演練、回補都算，開完先重設它的 neondb_owner 密碼。Neon 開分支會沿用上層的角色密碼，DEV 帳密能連 PRD 就是這樣來的（11-12 重設 PRD 後才分開）。重設用 `neon api /projects/<專案>/branches/<分支>/roles/neondb_owner/reset_password -X POST`，新密碼從回應的 role.password 直接寫進要用的 env 檔，不要印。之後要換成 PRD 的分支，換上去時 gov-database-url 加新版、推新 revision（Cloud Run 只在開機時讀 Secret）。
+Neon 金鑰（使用者 2026-11-17 定的）：session 用只限 oingg-gov 專案（late-glade-32772387）的金鑰 gov-ts-local，一律用 `node scripts/neon-local.mjs <neon 的參數>` 呼叫，不要直接打 neon。
+- 金鑰在 %USERPROFILE%\.neon-keys\oingg-gov.key。任何 session 都不直接讀、不印、不複製這個檔，只讓腳本讀；腳本只經 NEON_API_KEY 環境變數交給 neon。金鑰不寫進 .claude/settings.local.json，也不放在指令參數裡。
+- 它碰不到別的專案，也不能建專案或建金鑰；但 oingg-gov 裡的東西都能改、能刪，包括 PRD 分支，所以要跟資料庫密碼一樣看待。
+- 組織層級的事改用使用者自己的 neon 登入（直接打 neon）：建專案、組織設定、別的專案、帳單、建或撤銷金鑰。
+- 每 90 天換一次，跟 gcloud 金鑰一起，2027-02-15 前要換。第一把 2026-11-17 建，id 3548410。換法：
+  1. 把舊檔改名成 oingg-gov.key.old。
+  2. 用使用者的 neon 登入跑 `neon api-keys create --name gov-ts-local --project-id late-glade-32772387 --output json`，輸出直接接給小程式寫進 oingg-gov.key，不印（寫法見管理站 repo docs/本機憑證.md 最後一節）。
+  3. 用腳本跑一次 branches list，確認新金鑰能用。
+  4. 用 `neon api-keys revoke --id <舊 id> --org-id org-soft-surf-87639618` 撤銷舊金鑰，再刪掉 .old 檔。
+
+Neon 分支（使用者 2026-11-12 定的）：從 PRD（production）開出來的分支，DEV、演練、回補都算，開完先重設它的 neondb_owner 密碼。Neon 開分支會沿用上層的角色密碼，DEV 帳密能連 PRD 就是這樣來的（11-12 重設 PRD 後才分開）。重設用 `node scripts/neon-local.mjs api /projects/<專案>/branches/<分支>/roles/neondb_owner/reset_password -X POST`（見上面的「Neon 金鑰」），新密碼從回應的 role.password 直接寫進要用的 env 檔，不要印。之後要換成 PRD 的分支，換上去時 gov-database-url 加新版、推新 revision（Cloud Run 只在開機時讀 Secret）。
 
 銅層（使用者 2026-11-11 定的，格式照五個上游服務共用的 v1，細節見 README）：每次向上游抓的回應，不管成功失敗，都先原樣存進 GCS 再解析（src/shared/bronze.ts）。2026-11-12 起（使用者定的），回應的 sha256 和狀態碼跟同一網址上次存的一樣就不再存，ingestion_runs.raw_objects 記上次那個檔；已經存的重複檔不刪。正式環境存 oingg-gov-bronze（只增不刪、長期保留，維持 Standard），本機寫 DEV 時存 oingg-gov-bronze-dev，不可以寫進正式 bucket。寫不進 GCS 不擋匯入，會記 [bronze-write-failed] 並告警。ingestion_runs.raw_objects 記這次用了哪些 gs:// 檔。解析寫錯要重做時，用 scripts/replayIngest.ts <dataset> --from --to，預設只看，加 --apply 才寫；它從銅層重跑、同鍵覆寫，不連上游（--apply 打 PRD 就是觸發 PRD 匯入）。新加上游請求一律走 fetchUpstream／keepUpstream，新 domain 要把 job 加進 src/shared/ingestDatasets.ts。16 支都已接上；接上之前的 SITCA 資料只能重做上游檔案裡還有的日期。
