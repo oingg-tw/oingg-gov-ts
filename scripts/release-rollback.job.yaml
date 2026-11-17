@@ -1,0 +1,48 @@
+# 固定的「退回上一版」Job：把流量切到現在 100% 那一版的前一個可用版本。不收參數。
+# 本機帳號 gov-local-ops 只能執行它（roles/run.jobsExecutor），不能改它、不能帶覆寫參數。連跑兩次會再退一版；要接回最新版就跑 release-restore。
+# 照抄管理站 repo（oingg-admin-vue）deploy/release-rollback.job.yaml（d78a07b）。用法、權限見 CLAUDE.md 的「PRD 上線」和「本機 gcloud」。
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: release-rollback
+  labels:
+    cloud.googleapis.com/location: asia-southeast1
+spec:
+  template:
+    spec:
+      taskCount: 1
+      template:
+        spec:
+          serviceAccountName: release-job@oingg-gov.iam.gserviceaccount.com
+          maxRetries: 0
+          timeoutSeconds: '300'
+          containers:
+            - image: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+              command: [bash, -c]
+              args:
+                - |
+                  set -eu
+                  # 名稱要用正規表示式全符合：= 之後會連到名稱前綴相同的服務（例如 PRD 名稱是 DEV 名稱的前綴；證交所 11-17）
+                  cur=$(gcloud run services list --region="$REGION" --filter="metadata.name~^${SERVICE}\$" --flatten=status.traffic \
+                    --format='value(status.traffic.percent,status.traffic.revisionName)' | awk '$1 == 100 { print $2 }')
+                  if [ -z "$cur" ]; then echo "流量沒有 100% 在同一個版本，不自動退版"; exit 1; fi
+                  target=$(gcloud run revisions list --service="$SERVICE" --region="$REGION" --sort-by=~metadata.creationTimestamp \
+                    --flatten=status.conditions --filter='status.conditions.type=Ready' \
+                    --format='value(metadata.name,status.conditions.status)' | awk -v cur="$cur" 'seen && $2 == "True" { print $1; exit } $1 == cur { seen = 1 }')
+                  if [ -z "$target" ]; then echo "$cur 之前沒有可用的版本"; exit 1; fi
+                  echo "退版：$cur → $target"
+                  gcloud run services update-traffic "$SERVICE" --region="$REGION" --to-revisions="$target=100" --format=none
+                  echo "完成：流量 100% 在 $target"
+              env:
+                - name: SERVICE
+                  value: oingg-gov-ts
+                - name: REGION
+                  value: asia-southeast1
+                - name: CLOUDSDK_CORE_PROJECT
+                  value: oingg-gov
+                - name: CLOUDSDK_CORE_DISABLE_PROMPTS
+                  value: '1'
+              resources:
+                limits:
+                  cpu: 1000m
+                  memory: 512Mi
