@@ -321,6 +321,21 @@ It only reads, inside a read-only transaction. Snapshots stay in the OS temp
 directory (`oingg-post-deploy/gov-ts-<endpoint>.json`), one per database, so DEV and
 PRD never mix.
 
+## Deploy records
+
+After a production deploy has succeeded and been checked, record it in oingg-business-rust for
+the admin site's release page:
+
+```
+node tools/record-deploy.mjs --service gov-ts --environment prd --revision <new revision> --commit <SHORT_SHA>
+```
+
+Run it locally, where git has the full history, with your own gcloud login. It reads the keys
+from Secret Manager in oingg-business and prints neither them nor the ID token, and it copies
+the production record into the DEV ledger. Only production deploys are recorded, starting
+2026-11-17: gov has no DEV Cloud Run service. The tool is a verbatim copy of
+oingg-business-rust's (39bbee9); change it there first.
+
 ## Production memory headroom
 
 Measured on revision 00018 (2Gi, `--max-old-space-size=768`, 500-row chunking), 2026-09-25:
