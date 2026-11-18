@@ -323,18 +323,20 @@ PRD never mix.
 
 ## Deploy records
 
-After a production deploy has succeeded and been checked, record it in oingg-business-rust for
-the admin site's release page:
+Every production deploy records itself in oingg-business-rust for the admin site's release
+page. Since 2026-11-18 the `record-deploy` step at the end of cloudbuild.yaml runs this as
+cloud-build-deployer:
 
 ```
-node tools/record-deploy.mjs --service gov-ts --environment prd --revision <new revision> --commit <SHORT_SHA>
+node tools/record-deploy.mjs --service gov-ts --environment prd --revision <new revision> --commit <SHORT_SHA> --repo oingg-tw/oingg-gov-ts
 ```
 
-Run it locally, where git has the full history, with your own gcloud login. It reads the keys
-from Secret Manager in oingg-business and prints neither them nor the ID token, and it copies
-the production record into the DEV ledger. Only production deploys are recorded, starting
-2026-11-17: gov has no DEV Cloud Run service. The tool is a verbatim copy of
-oingg-business-rust's (39bbee9); change it there first.
+It reads the keys from Secret Manager in oingg-business and prints neither them nor the ID
+token, and it copies the production record into the DEV ledger. The step may fail without
+blocking the deploy, so check its output. If it failed, rerun the same command locally with
+your own gcloud login; the production record is not duplicated. Only production deploys are
+recorded: gov has no DEV Cloud Run service. The tool is a verbatim copy of
+oingg-business-rust's (8c3f2fb); change it there first.
 
 ## Production memory headroom
 

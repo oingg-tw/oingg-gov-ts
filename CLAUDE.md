@@ -33,7 +33,7 @@ PRD 上線（使用者 2026-11-11 定的）：
   - pnpm scheduler:apply（check 用服務帳號就可以）
   - replayIngest 打 Cloud Run
   - 讀密鑰或加版本
-  - tools/record-deploy.mjs
+  - 手動重跑 tools/record-deploy.mjs：平常部署由 Cloud Build 的 record-deploy 步驟自動登記（使用者 2026-11-18 定的），那一步失敗才要重跑
   - 改 IAM 和組織政策
   使用者帳號過期時，請使用者跑 gcloud auth login，或把指令交給使用者跑。
 - 金鑰每 90 天換一次。第一把 2026-11-17 建，key id 827cc05f 開頭，2027-02-15 前要換。換法：
