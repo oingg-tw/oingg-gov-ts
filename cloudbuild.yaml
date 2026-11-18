@@ -111,6 +111,26 @@ steps:
       - -c
       - docker tag ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:$SHORT_SHA ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:prd && docker push ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:prd
 
+  # 部署成功後在業務中台登記部署紀錄（2026-11-18 使用者核准，照櫃買 tpex-ts）：原本每次部署後要用使用者帳號在本機跑，登入 16 小時就過期。
+  # 登記失敗不擋部署（allowFailure），要看這一步的輸出；失敗時照 README 的「Deploy records」在本機重跑同一個指令，PRD 不會重複登記。
+  # 只有 main 會觸發，記 prd（腳本另寫一份到 DEV 總帳）；手動 gcloud builds submit 沒有分支，跳過。
+  # 權限：oingg-business 的 DEPLOY_RECORD_KEY_PRD／_DEV、GITHUB_READ_TOKEN 的 secretAccessor 和業務中台 PRD／DEV 的 run.invoker（業務中台開），
+  # 加上 cloud-build-deployer 對自己的 roles/iam.serviceAccountOpenIdTokenCreator：Cloud Build 裡拿不到 ID token，腳本改用 IAM Credentials API 幫自己簽。
+  # 用 cloud-sdk 映像是因為腳本要 gcloud；它的 apt 給的 Node 夠新。工作區是淺層 clone，上次部署的 commit 不在歷史裡時腳本改問 GitHub compare。
+  - id: record-deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    allowFailure: true
+    args:
+      - -c
+      - |
+        set -e
+        if [ "${BRANCH_NAME}" != main ]; then echo "分支「${BRANCH_NAME}」不登記部署紀錄"; exit 0; fi
+        apt-get -qq update >/dev/null && apt-get -qq install -y nodejs >/dev/null
+        git config --global --add safe.directory /workspace
+        REVISION=$$(gcloud run services describe ${_SERVICE} --region=${_REGION} --format='value(status.latestReadyRevisionName)')
+        node tools/record-deploy.mjs --service gov-ts --environment prd --revision "$$REVISION" --commit ${SHORT_SHA} --repo oingg-tw/oingg-gov-ts
+
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:$SHORT_SHA
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:latest

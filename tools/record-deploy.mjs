@@ -1,4 +1,5 @@
 // 部署完登記一筆部署紀錄（2026-10-29 使用者核准，管理站的版本發布管理第二階段；名稱 data-rust 定，詞彙表二之七節）。各服務照抄。
+// gov 2026-11-18 照抄業務中台 oingg-business-rust 8c3f2fb，只加了這一行；要改先改業務中台那份再抄回來。cloudbuild.yaml 的 record-deploy 步驟呼叫它。
 // 在有 git 歷史的地方、部署成功之後跑（本機上傳的 Cloud Build 沒有 .git）：先問業務中台「這個服務上次部署的 commit」，用
 // git log 算出上次以來的 commit，照 Conventional Commits 標出破壞性（標題的 `!` 或內文的 `BREAKING CHANGE:`），再 POST。
 // 金鑰從 Secret Manager 讀、ID token 用 gcloud 的身分，都不印出來。DEV 記在業務中台 DEV、PRD 記在 PRD。
@@ -12,7 +13,7 @@
 // 要 [--repo <owner/repo>]（沒給就從 git remote origin 推；Cloud Build 可以給 --repo $REPO_FULL_NAME）與只讀權杖：環境變數 GITHUB_READ_TOKEN，
 // 或 oingg-business 的 Secret GITHUB_READ_TOKEN。拿不到權杖、或 GitHub 回錯時照舊只記這一次，並印警告，不讓部署步驟失敗。本機有完整歷史
 // 的服務用不到權杖。
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 // parseCommits 把 `git log --format=%H%x1f%s%x1f%b%x1e` 的輸出變成 commits[]（最多 200 個、新到舊）。
@@ -50,9 +51,11 @@ const URLS = {
   prd: 'https://oingg-business-rust-704437269028.asia-southeast1.run.app',
 };
 
-const sh = (cmd, list, shell = false) => execFileSync(cmd, list, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], shell });
-// Windows 上 gcloud 是 .cmd，要經 shell（引數都是這支腳本自己組的）；git 不經 shell，cmd 會把 --format 裡的 %H 當成變數。
-const gcloud = (...list) => sh('gcloud', list, process.platform === 'win32').replace(/\r?\n$/, '');
+const opts = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] };
+const sh = (cmd, list) => execFileSync(cmd, list, opts);
+// Windows 上 gcloud 是 .cmd，要經 shell，所以整串交給 shell（引數都是這支腳本自己組的，沒有空白與特殊字元）。不用「參數陣列加 shell」：
+// 那樣參數不會跳脫，Node 會印 DEP0190，之後的版本可能改成錯誤（政府資料 2026-11-17 回報）。git 不經 shell，cmd 會把 --format 裡的 %H 當成變數。
+const gcloud = (...list) => execSync(`gcloud ${list.join(' ')}`, opts).replace(/\r?\n$/, '');
 
 async function main() {
   const args = Object.fromEntries(process.argv.slice(2).flatMap((a, i, all) => (a.startsWith('--') ? [[a.slice(2), all[i + 1]]] : [])));
@@ -137,15 +140,22 @@ async function main() {
   };
   const res = await fetch(`${base}/deploy-records`, { method: 'POST', headers, body: JSON.stringify(body) });
   if (res.status !== 201 && res.status !== 200) throw new Error(`POST /deploy-records 回 ${res.status}: ${await res.text()}`);
+  // 回應是庫裡存的那一筆。重跑時（200）是第一次登記的內容：這次算出來的範圍是空的（PRD 的上次就是這個 commit），不能拿來印，也不能寫進總帳。
+  const saved = await res.json();
   const breaking = commits.filter((c) => c.isBreaking).length;
-  console.log(`${res.status === 201 ? '登記' : '已經登記過'}：${service} ${environment} ${revision} ${commitSha}，${commits.length} 個 commit（${breaking} 個破壞性）${previous ? `，上次 ${previous}` : '，第一次登記'}`);
+  console.log(
+    res.status === 201
+      ? `登記：${service} ${environment} ${revision} ${commitSha}，${commits.length} 個 commit（${breaking} 個破壞性）${previous ? `，上次 ${previous}` : '，第一次登記'}`
+      : `已經登記過：${service} ${environment} ${saved.revision} ${saved.commitSha}（${saved.deployedAt}），存了 ${saved.commits.length} 個破壞性 commit`,
+  );
 
   // 業務中台 DEV 的表是所有環境的總帳（2026-10-30 使用者）：管理站 DEV 只讀得到 DEV 庫，要拿正式站的紀錄比對「DEV 有、正式站還沒有
-  // 的破壞性變更」。所以正式站部署後同一個 body 再寫一份到 DEV（environment 維持 prd）；commit 範圍照舊用 PRD 的 latest 算。
+  // 的破壞性變更」。所以正式站部署後，把 PRD 庫存的那一筆再寫一份到 DEV（environment 維持 prd）。寫存的那一筆而不是這次的 body：
+  // DEV 一時收不下（例如 DEV 退版中）而重跑時，commit 與部署時間才會跟 PRD 那筆一樣（2026-11-17 政府資料、基金後台補登時發現）。
   // 寫 DEV 失敗只警告，不讓部署步驟失敗（PRD 那筆已經寫好了）。用 --url 指定網址時不另寫。
   if (environment === 'prd' && !args.url) {
     try {
-      const copy = await fetch(`${URLS.dev}/deploy-records`, { method: 'POST', headers: await headersFor('dev', URLS.dev), body: JSON.stringify(body) });
+      const copy = await fetch(`${URLS.dev}/deploy-records`, { method: 'POST', headers: await headersFor('dev', URLS.dev), body: JSON.stringify(saved) });
       if (copy.status !== 201 && copy.status !== 200) throw new Error(`回 ${copy.status}: ${await copy.text()}`);
       console.log(`  也記進 DEV 的總帳（${copy.status === 201 ? '新增' : '已經有了'}）`);
     } catch (error) {
