@@ -30,7 +30,8 @@
  * - fund-daily-nav 每天 22:00：SITCA 的 nav.csv 是 T 日晚間陸續發布，22:00 抓到的是 T 日部分
  *   （實測 2026-09-21 當天 467 檔）；檔案本身是 2 個交易日的滾動窗口，隔天 22:00 那次會把 T 日補齊
  *   （09-18 最後是 4445 檔），所以不用另外排隔天早上的補抓。
- * - 全部 job 都在 10 秒內完成，attemptDeadline 用預設 180s。原本唯一的 long-running job 是每月 3 日的
+ * - 全部 job 都在 20 秒內完成，attemptDeadline 用預設 180s（2026-11-19 看近 7 天的請求紀錄：最久的是 ECB 和淨值，
+ *   約 19 秒，其他都在 10 秒內）。原本唯一的 long-running job 是每月 3 日的
  *   labor-broker-tax-registration（串流掃財政部 322MB 稅籍檔，設到上限 1800s），2026-11-13 隨仲介三支刪掉；
  *   2026-10-07 之前還有兩支（company-profile-refresh-tracked-weekly 與
  *   company-industry-classification-monthly）隨公司產業分類整組移除。
