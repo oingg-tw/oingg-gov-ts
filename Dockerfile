@@ -5,7 +5,9 @@ FROM node:26-trixie-slim AS builder
 
 WORKDIR /app
 
-RUN npm install -g pnpm@11
+# pnpm 跟 package.json 的 packageManager 同一版：本機（pnpm 12 會照它改用這版）、GitHub CI、Cloud Build 都一樣（2026-11-19）。
+# 不用 11.28.13：本機下載的執行檔會被這台 Windows 的 Application Control 擋（證交所實測）。
+RUN npm install -g pnpm@11.28.9
 
 # postinstall（pnpm install 觸發）會跑 prisma generate，讀 prisma.config.ts 時會直接檢查 DIRECT_URL
 # 這個環境變數存不存在（不需要真的連得上，只是讀設定檔這一步就會先擋）——容器裡沒有 .env，一定要

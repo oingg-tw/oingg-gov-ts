@@ -18,7 +18,7 @@ steps:
         # 兩者都需要 DIRECT_URL 才能讓 prisma.config.ts 解析成功（不需要真的連得上，只要變數存在），
         # 所以要在 pnpm install 之前就 export，不能只放在最後一行手動呼叫前面。
         export DIRECT_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
-        npm install -g pnpm@11
+        npm install -g pnpm@11.28.9 # 跟 package.json 的 packageManager 同一版，理由見 Dockerfile
         pnpm install --frozen-lockfile
         npx prisma generate
         pnpm test
