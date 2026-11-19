@@ -1,3 +1,5 @@
-# Git hook 一律用 LF：Windows 上 core.autocrlf=true 的 clone 會把 hook 轉成 CRLF，sh 讀到 "set -e\r" 就失敗
-#（twse-ts 2026-10-14 實測，mops-ts 5d558a5）。
-.husky/* text eol=lf
+# 文字檔一律用 LF 簽出，跟 index、Cloud Build、Docker 一樣，不看各台機器的 core.autocrlf。
+# 這台 Windows 的 Git 在系統設定開了 core.autocrlf=true：簽出變 CRLF，工具改過的檔案又存回 LF，本機測試讀的 fixture 也跟 CI 不同。
+# Git hook 是 CRLF 會直接失敗，sh 讀到 "set -e\r"（twse-ts 2026-10-14 實測，mops-ts 5d558a5）。
+# repo 裡沒有非 CRLF 不可的檔案（.cmd、.bat），以後加了要另寫一行 eol=crlf。
+* text=auto eol=lf
