@@ -42,6 +42,28 @@ steps:
       - --all-tags
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app
 
+  # 部署前先等同一個觸發條件裡比這次早建立、還在跑的建置（使用者 2026-11-19：能自動化就自動化；照管理站 9acf9e7）。
+  # 連推兩次、建置重疊時，較早的那次如果比較晚部署完，to-latest 會把流量切回舊程式、prd 標籤停在舊映像、部署紀錄的順序也會亂。
+  # 每 20 秒查一次、最多 20 分鐘；逾時或查詢失敗都照樣部署，不擋上線。手動 gcloud builds submit 沒有觸發條件，不等。
+  # test、build、push 不用等，跟較早的建置平行跑。查建置用的是 cloud-build-deployer 本來就有的 cloudbuild.builds.builder；
+  # 觸發條件 deploy-on-push-to-main 在 global，不用帶 --region。最多等 20 分鐘，所以 build 的 timeout 調成 1800s（檔案最下面）。
+  - id: wait-earlier-builds
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        me=$$(gcloud builds describe ${BUILD_ID} --format='value(createTime,buildTriggerId)') || { echo "查不到這次建置的資料，不等"; exit 0; }
+        read -r created trigger <<< "$$me"
+        [ -n "$$trigger" ] || { echo "不是觸發條件啟動的建置，不等"; exit 0; }
+        for i in $$(seq 60); do
+          earlier=$$(gcloud builds list --ongoing --verbosity=error --filter="buildTriggerId=$$trigger AND createTime<'$$created'" --format='value(id)') || { echo "查不到較早的建置，照樣部署"; exit 0; }
+          [ -z "$$earlier" ] && exit 0
+          echo "等較早的建置跑完：$$earlier"
+          sleep 20
+        done
+        echo "等了 20 分鐘還有較早的建置在跑，照樣部署"
+
   - id: deploy
     name: gcr.io/cloud-builders/gcloud
     args:
@@ -145,3 +167,6 @@ images:
 # 建 GitHub trigger 這步才會擋（見 oingg-conductor-ts/docs/production-deployment.md）。
 options:
   logging: CLOUD_LOGGING_ONLY
+
+# 預設 10 分鐘不夠：wait-earlier-builds 最多等 20 分鐘，加上平常約 5 分鐘的建置。照實際用掉的分鐘計費。
+timeout: 1800s
