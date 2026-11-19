@@ -117,6 +117,8 @@ steps:
   # 權限：oingg-business 的 DEPLOY_RECORD_KEY_PRD／_DEV、GITHUB_READ_TOKEN 的 secretAccessor 和業務中台 PRD／DEV 的 run.invoker（業務中台開），
   # 加上 cloud-build-deployer 對自己的 roles/iam.serviceAccountOpenIdTokenCreator：Cloud Build 裡拿不到 ID token，腳本改用 IAM Credentials API 幫自己簽。
   # 用 cloud-sdk 映像是因為腳本要 gcloud；它的 apt 給的 Node 夠新。工作區是淺層 clone，上次部署的 commit 不在歷史裡時腳本改問 GitHub compare。
+# revision 用這次映像的 digest 找，不用 latestReadyRevisionName：兩次建置重疊時，先開始的那次會把後一次的 revision 記成自己的 commit
+#（櫃買 2026-11-19 DEV 實例，tpex a9ca51c）。revision 的 spec 存的是 @sha256 digest 不是標籤；--limit 會先套用再篩，所以用 head -1。找不到就不登記。
   - id: record-deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
@@ -128,7 +130,10 @@ steps:
         if [ "${BRANCH_NAME}" != main ]; then echo "分支「${BRANCH_NAME}」不登記部署紀錄"; exit 0; fi
         apt-get -qq update >/dev/null && apt-get -qq install -y nodejs >/dev/null
         git config --global --add safe.directory /workspace
-        REVISION=$$(gcloud run services describe ${_SERVICE} --region=${_REGION} --format='value(status.latestReadyRevisionName)')
+        DIGEST=$$(gcloud artifacts docker images describe ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/app:$SHORT_SHA --format='value(image_summary.digest)')
+        [ -n "$$DIGEST" ] || { echo "讀不到 app:$SHORT_SHA 的 digest，不登記"; exit 1; }
+        REVISION=$$(gcloud run revisions list --service=${_SERVICE} --region=${_REGION} --filter="spec.containers.image:$$DIGEST" --sort-by='~metadata.creationTimestamp' --format='value(metadata.name)' | head -1)
+        [ -n "$$REVISION" ] || { echo "找不到 $$DIGEST 的 revision，不登記"; exit 1; }
         node tools/record-deploy.mjs --service gov-ts --environment prd --revision "$$REVISION" --commit ${SHORT_SHA} --repo oingg-tw/oingg-gov-ts
 
 images:
