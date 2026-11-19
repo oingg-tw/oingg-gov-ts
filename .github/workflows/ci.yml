@@ -7,7 +7,8 @@
 # 連不上就拒絕啟動（2026-10-13 起；之前 Prisma 7 搭 driver adapter 的 $connect() 不會真的連線，資料庫
 # 掛了也照樣印「已連線」），所以 services 起一個空的 Postgres 18（跟正式環境 Neon 同一個大版本）。
 # 不跑 migration、不需要任何表：煙霧測試只驗「原生檔載得起來＋連得上資料庫＋listen 完成」。
-# Node 26、pnpm 11 都跟 Dockerfile 一致（uWebSockets.js 綁 Node ABI）。
+# Node 26 跟 Dockerfile 一致（uWebSockets.js 綁 Node ABI）。pnpm 不寫 version，action 讀 package.json 的
+# packageManager，跟 Dockerfile、cloudbuild.yaml 同一版。
 #
 # dependabot-merge：needs: checks，同一次執行裡 checks 通過才會跑；只合 Dependabot 開到 development、
 # 而且不是 semver-major 的 PR，用 --match-head-commit 只合剛驗證過的那個 commit。
@@ -70,8 +71,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        with:
-          version: 11
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Ingests data from the Central Bank of the Republic of China (Taiwan) Statistical Database API into a Postgres database.",
   "main": "src/index.ts",
+  "packageManager": "pnpm@11.28.9",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
