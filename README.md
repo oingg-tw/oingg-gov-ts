@@ -87,8 +87,22 @@ agency has the data you need.
    `adapters/fred/client.ts` (fixed-path CSV).
 3. Add a `src/domains/<domain>/` folder following the layout above.
 4. Add a Prisma model in `prisma/schema.prisma` (field naming / `@map`
-   conventions should match oingg-mops-ts's schema) and run
-   `pnpm prisma migrate dev --name <description>`.
+   conventions should match oingg-mops-ts's schema), then write the migration
+   with `migrate diff`, not `migrate dev`:
+   ```
+   mkdir prisma/migrations/<YYYYMMDDHHMMSS>_<name>
+   pnpm prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script \
+     > prisma/migrations/<YYYYMMDDHHMMSS>_<name>/migration.sql
+   ```
+   Check the SQL holds only your change and add the 3s `lock_timeout` at the
+   top, like the recent migrations. Apply it to DEV (the local `.env`) with
+   `pnpm prisma migrate deploy`; the same `migrate diff` should then print an
+   empty script. PRD is applied by hand (see CLAUDE.md). Renames must be
+   hand-written: `migrate diff` turns a `@map`/`@@map` rename into DROP +
+   CREATE.
+   `migrate dev` resets the whole database once it decides an applied
+   migration was edited (a CRLF/LF checksum difference is enough), and it
+   needs a shadow database and an interactive terminal.
 5. Wire the domain's router into `src/routes.ts` under `ingestRouter`, which
    applies `TASK_SECRET` + rate limiting once at the router level — no
    per-route setup needed. `ingestRouter` is the only mount point; there is
