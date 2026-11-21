@@ -1,15 +1,16 @@
 import type { EcbPolicyRatePoint } from '@/domains/ecbPolicyRate/types';
 import { parseSourceNumber } from '@/shared/parseSourceValue';
 
-// ECB 的三大政策利率（官方稱 "key ECB interest rates"），SDMX dataflow FM、日頻率、歐元區合計：
-export const DEPOSIT_FACILITY_SERIES = 'FM/D.U2.EUR.4F.KR.DFR.LEV'; // 存款機制利率
-export const MARGINAL_LENDING_SERIES = 'FM/D.U2.EUR.4F.KR.MLFR.LEV'; // 邊際貸款機制利率
+// ECB 的三大政策利率（官方稱 "key ECB interest rates"），SDMX dataflow FM、歐元區合計。用 B 頻率的「調整日」序列
+// （date of changes）：每列是一次調整的生效日，四支合計約 200 列。2026-11-22 以前用 D（日）頻率：四支每天約 2MB，
+// 只多一筆持平值，銅層天天多存一份（管理站轉使用者的話：重複拉大量資料要拿掉）。換之前比對過，兩種序列算出的 69 列逐列相同。
+export const DEPOSIT_FACILITY_SERIES = 'FM/B.U2.EUR.4F.KR.DFR.LEV'; // 存款機制利率
+export const MARGINAL_LENDING_SERIES = 'FM/B.U2.EUR.4F.KR.MLFR.LEV'; // 邊際貸款機制利率
 // 主要再融資利率（MRO）被 ECB 拆成兩支，因為標售機制換過兩次：
-export const MAIN_REFINANCING_FIXED_SERIES = 'FM/D.U2.EUR.4F.KR.MRR_FR.LEV'; // 固定利率標售：1999-01-01~2000-06-27、2008-10-15~
-export const MAIN_REFINANCING_MIN_BID_SERIES = 'FM/D.U2.EUR.4F.KR.MRR_MBR.LEV'; // 最低投標利率（變動利率標售）：2000-06-28~2008-10-14
-// 2026-09-29 實測：兩支的日期沒有任何一天重疊，聯集（7,103 + 3,031 = 10,134 天）剛好等於 DFR/MLFR
-// 的完整涵蓋範圍，所以縫起來不會有洞也不會有衝突。下面仍然保留「兩支都有值就以固定利率標售為準」的
-// 處理，萬一 ECB 哪天回填造成重疊，行為是確定的而不是看 Map 寫入順序。
+export const MAIN_REFINANCING_FIXED_SERIES = 'FM/B.U2.EUR.4F.KR.MRR_FR.LEV'; // 固定利率標售：1999-01-01~2000-06-27、2008-10-15~
+export const MAIN_REFINANCING_MIN_BID_SERIES = 'FM/B.U2.EUR.4F.KR.MRR_MBR.LEV'; // 最低投標利率（變動利率標售）：2000-06-28~2008-10-14
+// 哪一支在用，看誰的最近一筆比較新；MRR_MBR 在 2008-10-15 有一筆空值當結束標記，空值照常跳過，那天固定利率已經有值。
+// 同一天兩支都有值就以固定利率標售為準，萬一 ECB 哪天回填造成重疊，行為是確定的。
 
 // ECB 的 csvdata 格式：表頭是維度名稱＋TIME_PERIOD＋OBS_VALUE，欄位順序會隨 dataflow 不同，
 // 所以按名稱找 index，不用固定位置。
@@ -45,9 +46,9 @@ const toUtcDate = (iso: string): Date => {
 };
 
 /**
- * 四支日頻率序列 → 「每列一次變動」的事件序列（2026-09-29 實測 69 列，1999-01-01 起）。
- * 跟 cbc_policy_rate / us_policy_rate 同一種形狀：ECB 原始資料是每日持平值（10,134 天），這裡 diff
- * 相鄰值，只在四個欄位任一改變時出一列。
+ * 四支序列 → 「每列一次變動」的事件序列（2026-11-22 實測 69 列，1999-01-01 起），跟 cbc_policy_rate / us_policy_rate
+ * 同一種形狀。走訪四支所有日期的聯集，每個日期取各支到那天為止最近的一筆，四個欄位任一改變才出一列。
+ * 調整日序列和日序列（2026-11-22 以前存進銅層的檔）都適用：日序列每天都有值，取到的就是當天的值。
  *
  * 注意三支利率不是每次都同步調整：實測 69 列裡有 7 列主要再融資利率沒動、只動了存款機制或邊際貸款
  * 機制（ECB 調整利率走廊寬度，例如 2015-12-09、2019-09-18），所以下游若拿主要再融資利率當代表利率
@@ -59,29 +60,32 @@ export const parseEcbPolicyRate = (
   mainFixedCsv: string,
   mainMinBidCsv: string
 ): EcbPolicyRatePoint[] => {
-  const deposit = new Map(parseEcbRows(depositCsv, DEPOSIT_FACILITY_SERIES));
-  const marginal = new Map(parseEcbRows(marginalCsv, MARGINAL_LENDING_SERIES));
-  const mainFixed = new Map(parseEcbRows(mainFixedCsv, MAIN_REFINANCING_FIXED_SERIES));
-  const mainMinBid = new Map(parseEcbRows(mainMinBidCsv, MAIN_REFINANCING_MIN_BID_SERIES));
+  const series = [
+    parseEcbRows(depositCsv, DEPOSIT_FACILITY_SERIES),
+    parseEcbRows(marginalCsv, MARGINAL_LENDING_SERIES),
+    parseEcbRows(mainFixedCsv, MAIN_REFINANCING_FIXED_SERIES),
+    parseEcbRows(mainMinBidCsv, MAIN_REFINANCING_MIN_BID_SERIES),
+  ].map((rows) => rows.sort(([a], [b]) => a.localeCompare(b)));
+  const next = series.map(() => 0);
+  const latest: ([string, number] | undefined)[] = series.map(() => undefined);
 
   const points: EcbPolicyRatePoint[] = [];
   let prev: EcbPolicyRatePoint | null = null;
-  // 以存款機制利率的日期為基準走訪——它是四支裡涵蓋最完整的一支（1999-01-01 起無間斷）。
-  for (const date of [...deposit.keys()].sort()) {
-    const depositRate = deposit.get(date)!;
-    const marginalRate = marginal.get(date);
-    const fixed = mainFixed.get(date);
-    const minBid = mainMinBid.get(date);
-    const mainRate = fixed ?? minBid;
-    // 某一天只有部分利率有值就跳過那天——存半組政策利率比沒有更糟（跟 usPolicyRate 同一個取捨）。
-    if (marginalRate === undefined || mainRate === undefined) continue;
+  for (const date of [...new Set(series.flat().map(([d]) => d))].sort()) {
+    series.forEach((rows, i) => {
+      while (next[i]! < rows.length && rows[next[i]!]![0] <= date) latest[i] = rows[next[i]!++];
+    });
+    const [deposit, marginal, fixed, minBid] = latest;
+    const main = minBid && (!fixed || minBid[0] > fixed[0]) ? minBid : fixed;
+    // 還有利率沒開始就跳過——存半組政策利率比沒有更糟（跟 usPolicyRate 同一個取捨）。
+    if (!deposit || !marginal || !main) continue;
 
     const point: EcbPolicyRatePoint = {
       effectiveDate: toUtcDate(date),
-      depositFacilityRate: depositRate,
-      mainRefinancingRate: mainRate,
-      marginalLendingRate: marginalRate,
-      mainRefinancingIsMinimumBid: fixed === undefined,
+      depositFacilityRate: deposit[1],
+      mainRefinancingRate: main[1],
+      marginalLendingRate: marginal[1],
+      mainRefinancingIsMinimumBid: main === minBid,
     };
     if (
       prev &&

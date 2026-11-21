@@ -22,7 +22,7 @@ export interface EcbCsvFetchResult {
 }
 
 /**
- * @param seriesPath SDMX 的 `<dataflow>/<series key>`，例如 `FM/D.U2.EUR.4F.KR.DFR.LEV`
+ * @param seriesPath SDMX 的 `<dataflow>/<series key>`，例如 `FM/B.U2.EUR.4F.KR.DFR.LEV`
  */
 export const fetchEcbSeriesCsv = async (seriesPath: string): Promise<EcbCsvFetchResult> => {
   // detail=dataonly 去掉屬性欄位，只留維度＋觀測值
