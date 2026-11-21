@@ -2,6 +2,7 @@ import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
 import { X509Certificate } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
 import { keepUpstream, type UpstreamResponse } from '@/shared/bronze';
 
@@ -274,17 +275,24 @@ const downloadWithAia = async (url: string): Promise<UpstreamResponse> => {
 };
 
 // 任何 HTTP 狀態都整份讀完回傳（錯誤回應也要存進銅層），要不要丟錯由 fetchDgbasXml 看 ok 決定。
+// 要 gzip 再自己解開，回傳和存進銅層的都是解開後的內容，跟 fetchUpstream（fetch 自動解壓）一樣。2026-11-22 實測：CPI 的 XML
+// 15.8MB → 1.1MB，解開後跟原本不壓縮的下載逐位元組相同。來源沒有 ETag／Last-Modified，不能用條件式請求省掉下載本身。
 const downloadXml = (url: string): Promise<UpstreamResponse> => {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { agent: dgbasHttpsAgent, headers: { 'User-Agent': OUTBOUND_USER_AGENT } }, (res) => {
+      .get(url, { agent: dgbasHttpsAgent, headers: { 'User-Agent': OUTBOUND_USER_AGENT, 'Accept-Encoding': 'gzip' } }, (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', () => {
           const status = res.statusCode ?? 0;
           const headers = new Headers();
           for (const [name, value] of Object.entries(res.headers)) if (typeof value === 'string') headers.set(name, value);
-          resolve({ ok: status >= 200 && status < 300, status, headers, body: Buffer.concat(chunks) });
+          const raw = Buffer.concat(chunks);
+          try {
+            resolve({ ok: status >= 200 && status < 300, status, headers, body: res.headers['content-encoding'] === 'gzip' ? gunzipSync(raw) : raw });
+          } catch (error) {
+            reject(error); // 解不開就跟連線中斷一樣算下載失敗
+          }
         });
         res.on('error', reject);
       })
