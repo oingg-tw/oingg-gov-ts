@@ -21,3 +21,4 @@ overrides:
   body-parser: ^2.4.0 # high，GHSA-27r3-jxmh-p828（<2.4.0）；來自 swagger-ui-express > express 5.2.1，上層範圍 ^2.2.1，修補版在範圍內（2026-10-27）
   source-map-js: ^1.2.2 # Prisma（c12 > magicast）與 vitest coverage 內部
   mysql2: ^3.23.1 # Prisma CLI 內建的 MySQL 驅動（prisma 鎖死 3.15.3），我們只用 PostgreSQL，執行期不會載入
+  effect: ^3.22.1 # high，GHSA-7589-6fvf-x4pw（Schema.TemplateLiteral 的 ReDoS，<=3.22.0）；Prisma 7.10.1 的 @prisma/config 鎖死 3.20.0，2026-11-22 最新穩定版仍是 7.10.1。只有 Prisma CLI 讀 prisma.config 時用到，同一個 major
