@@ -14,7 +14,7 @@ describe('parseEcbPolicyRate', () => {
       csv([['1999-01-01', '2.00'], ['1999-01-02', '2.00'], ['1999-01-03', '1.75']]),
       csv([['1999-01-01', '4.50'], ['1999-01-02', '4.50'], ['1999-01-03', '4.50']]),
       csv([['1999-01-01', '3.00'], ['1999-01-02', '3.00'], ['1999-01-03', '3.00']]),
-      csv([['2000-06-28', '4.25']])
+      csv([['1998-12-31', '9.99']]) // 比固定利率早，一開始就被蓋過；放在之後會被當成換了標售機制
     );
     expect(points.map((p) => [iso(p.effectiveDate), p.depositFacilityRate])).toEqual([
       ['1999-01-01', 2],
@@ -58,14 +58,21 @@ describe('parseEcbPolicyRate', () => {
     expect(point).toMatchObject({ mainRefinancingRate: 3.75, mainRefinancingIsMinimumBid: false });
   });
 
-  it('skips a day where only part of the rate set is present', () => {
+  // 調整日序列（B 頻率，現在抓的）：各支只列自己調整的那天，沒列就是沿用。
+  it('carries each rate forward between its own change dates and waits until every rate has started', () => {
     const points = parseEcbPolicyRate(
-      csv([['2026-01-01', '2.00'], ['2026-01-02', '2.25']]),
-      csv([['2026-01-01', '2.40']]),
-      csv([['2026-01-01', '2.15'], ['2026-01-02', '2.40']]),
-      csv([['2000-06-28', '4.25']])
+      csv([['1999-01-01', '2.00'], ['1999-04-09', '1.50']]),
+      csv([['1999-01-04', '4.50'], ['1999-04-09', '3.50']]),
+      csv([['1999-01-01', '3.00'], ['1999-04-09', '2.50'], ['2000-06-09', '4.25'], ['2008-10-15', '3.75']]),
+      csv([['2000-06-28', '4.25'], ['2008-10-15', '']]) // 空值是 ECB 的結束標記
     );
-    expect(points.map((p) => iso(p.effectiveDate))).toEqual(['2026-01-01']);
+    expect(points.map((p) => [iso(p.effectiveDate), p.depositFacilityRate, p.mainRefinancingRate, p.marginalLendingRate, p.mainRefinancingIsMinimumBid])).toEqual([
+      ['1999-01-04', 2, 3, 4.5, false], // 邊際貸款利率這天才開始
+      ['1999-04-09', 1.5, 2.5, 3.5, false],
+      ['2000-06-09', 1.5, 4.25, 3.5, false], // 只調 MRO，其他兩支沿用
+      ['2000-06-28', 1.5, 4.25, 3.5, true], // 改成變動利率標售
+      ['2008-10-15', 1.5, 3.75, 3.5, false], // 回到固定利率標售
+    ]);
   });
 
   it('throws when the CSV no longer carries the expected columns', () => {
