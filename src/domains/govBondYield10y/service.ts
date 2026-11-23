@@ -1,7 +1,7 @@
 import prisma from '@/adapters/prisma/index';
 import { upsertRows } from '@/shared/upsertRows';
 import { fetchCbcItem } from '@/adapters/cbc';
-import { parseMonthlyGovBondYield10y } from '@/domains/govBondYield10y/parser';
+import { parseMonthlyCapitalMarketRates, parseMonthlyGovBondYield10y } from '@/domains/govBondYield10y/parser';
 import type { MonthlyGovBondYield10yPoint } from '@/domains/govBondYield10y/types';
 
 const ITEM_CODE = 'EG43M01en';
@@ -12,6 +12,7 @@ export interface IngestGovBondYield10yResult {
   totalPoints: number;
   fetched: number;
   skipped: number;
+  capitalMarketRatePoints?: number; // 整張表 20 欄的長表列數（monthly_capital_market_rate）
   error?: string;
 }
 
@@ -41,6 +42,8 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyG
 // 的網路延遲下每筆兩次往返，量一大就很慢（monthlyCpi 4,376 筆實測跑了近 10 分鐘，這個 domain 只有
 // 369 筆問題不大，但改成同一套寫法純粹圖一致，之後有人抄這個 domain 當範本不會抄到慢的版本）。
 // force 時整批刪除重建，不 force 時同鍵覆寫（shared/upsertRows.ts）。
+// 2026-11-23 起同一份回應也寫整張表 20 欄（monthly_capital_market_rate → v_monthly_capital_market_rates），
+// 不另開 job 重抓同一個檔。ingestion_runs 仍記在 v_monthly_gov_bond_yields_10y 底下，列數是十年期那支的。
 export const ingestMonthlyGovBondYield10y = async (force = false): Promise<IngestGovBondYield10yResult> => {
   let raw;
   try {
@@ -51,8 +54,10 @@ export const ingestMonthlyGovBondYield10y = async (force = false): Promise<Inges
   }
 
   let points;
+  let rates;
   try {
     points = parseMonthlyGovBondYield10y(raw);
+    rates = parseMonthlyCapitalMarketRates(raw);
   } catch (error) {
     await recordIngestionRun('failed', []);
     return { success: false, totalPoints: 0, fetched: 0, skipped: 0, error: error instanceof Error ? error.message : String(error) };
@@ -63,15 +68,24 @@ export const ingestMonthlyGovBondYield10y = async (force = false): Promise<Inges
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyGovBondYield10y.deleteMany({}), prisma.monthlyGovBondYield10y.createMany({ data })], { timeout: 30000 });
+    await prisma.$transaction(
+      [
+        prisma.monthlyGovBondYield10y.deleteMany({}),
+        prisma.monthlyGovBondYield10y.createMany({ data }),
+        prisma.monthlyCapitalMarketRate.deleteMany({}),
+        prisma.monthlyCapitalMarketRate.createMany({ data: rates }),
+      ],
+      { timeout: 30000 }
+    );
     fetched = points.length;
     skipped = 0;
   } else {
     const { inserted, updated } = await upsertRows('MonthlyGovBondYield10y', ['year', 'month'], data);
     fetched = inserted + updated;
     skipped = points.length - fetched;
+    await upsertRows('MonthlyCapitalMarketRate', ['year', 'month', 'category'], rates);
   }
 
   await recordIngestionRun('success', points);
-  return { success: true, totalPoints: points.length, fetched, skipped };
+  return { success: true, totalPoints: points.length, fetched, skipped, capitalMarketRatePoints: rates.length };
 };

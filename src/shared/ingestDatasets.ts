@@ -9,9 +9,11 @@ import { EXPORT_DATASET as monthlyBusinessCycleIndicator } from '@/domains/month
 import { EXPORT_DATASET as monthlyCpi } from '@/domains/monthlyCpi/service';
 import { EXPORT_DATASET as monthlyFiveMajorBankRate } from '@/domains/monthlyFiveMajorBankRate/service';
 import { EXPORT_DATASET as monthlyMonetaryAggregate } from '@/domains/monthlyMonetaryAggregate/service';
+import { EXPORT_DATASET as monthlyMoneyMarketRate } from '@/domains/monthlyMoneyMarketRate/service';
 import { EXPORT_DATASET as monthlyStockMarketSummary } from '@/domains/monthlyStockMarketSummary/service';
 import { EXPORT_DATASET as monthlyUnemploymentRate } from '@/domains/monthlyUnemploymentRate/service';
 import { EXPORT_DATASET as quarterlyGdp } from '@/domains/quarterlyGdp/service';
+import { EXPORT_DATASET as quarterlyGdpExpenditure } from '@/domains/quarterlyGdpExpenditure/service';
 import { EXPORT_DATASET as quarterlyUsGnpDeflator } from '@/domains/quarterlyUsGnpDeflator/service';
 import { EXPORT_DATASET as usPolicyRate } from '@/domains/usPolicyRate/service';
 
@@ -30,9 +32,11 @@ export const DATASET_BY_JOB: Record<string, string> = {
   'monthly-cpi': monthlyCpi,
   'five-major-bank-rate': monthlyFiveMajorBankRate,
   'monthly-monetary-aggregate': monthlyMonetaryAggregate,
+  'monthly-money-market-rate': monthlyMoneyMarketRate,
   'monthly-stock-market-summary': monthlyStockMarketSummary,
   'monthly-unemployment-rate': monthlyUnemploymentRate,
   'quarterly-gdp': quarterlyGdp,
+  'quarterly-gdp-expenditure': quarterlyGdpExpenditure,
   'quarterly-us-gnp-deflator': quarterlyUsGnpDeflator,
   'us-policy-rate': usPolicyRate,
 };

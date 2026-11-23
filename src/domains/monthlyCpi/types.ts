@@ -1,7 +1,6 @@
-// 只收「總指數」跟七大類指數（一~七），不收主計總處原始檔案裡完整的 81 個子項目（例如「米類及其
-// 製品」「生鮮家畜」這種細到菜籃子等級的分類）——這個服務的用途是總經篩選因子，不是 CPI 籃子研究，
-// 七大類已經夠支撐「原物料/內需股」這種類股輪動判斷（見 DATA-GOV-TW-SURVEY.md），存全部 81 項只會
-// 讓一次 ingest 從 ~8,752 筆膨脹到 ~88,614 筆，換不到對應的使用場景。
+// monthly_cpi（v_monthly_cpis）只放總指數跟七大類，數據中台拿來當總經篩選因子。檔案裡全部 81 項（含「米類及其
+// 製品」這種細項）2026-11-23 起另存 monthly_cpi_item（v_monthly_cpi_items）：網頁前端要讓 CPI 頁從大類往下展開，
+// 使用者說總經相關的都要用。
 export type CpiCategory =
   | 'total' // 總指數
   | 'food' // 一.食物類
@@ -18,4 +17,16 @@ export interface MonthlyCpiPoint {
   category: CpiCategory;
   indexValue: number | null; // 原始值（指數，基期見官方檔案標註，目前是民國110年=100；官方之後改基期年時這裡的數字含義會跟著變，不在這裡處理換基期）
   yoyChangePercent: number | null; // 年增率(%)；資料起始年份附近常缺值（沒有前一年可比較），null 是真的缺值，不是 0
+}
+
+// 81 項的一列（一個月一項）。階層照官方編號：總指數 → 「一.」大類 → 「1.」 → 「(1)」。
+export interface MonthlyCpiItemPoint {
+  year: number; // 西元年
+  month: number; // 1-12
+  itemName: string; // 官方名稱去掉編號和基期標註，例如「米類及其製品」；81 項不重複（解析時檢查）
+  category: CpiCategory; // 所屬大類，總指數自己是 total
+  parentItemName: string | null; // 上一層的 itemName；總指數是 null，大類是「總指數」
+  itemOrder: number; // 官方檔案裡的順序，從 1 起
+  indexValue: number | null; // 同 MonthlyCpiPoint
+  yoyChangePercent: number | null;
 }

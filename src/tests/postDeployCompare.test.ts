@@ -38,6 +38,8 @@ describe('post-deploy compare', () => {
   });
 
   it('has a natural key for every dataset', () => {
-    expect(Object.keys(VIEW_KEYS).sort()).toEqual(Object.values(DATASET_BY_JOB).sort());
+    // 跟主資料集同一次匯入寫的 view，沒有自己的 job（2026-11-23 起）
+    const companionViews = ['v_monthly_capital_market_rates', 'v_monthly_cpi_items', 'v_monthly_monetary_aggregate_components'];
+    expect(Object.keys(VIEW_KEYS).sort()).toEqual([...Object.values(DATASET_BY_JOB), ...companionViews].sort());
   });
 });

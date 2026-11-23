@@ -29,6 +29,39 @@ model MonthlyGovBondYield10y {
   @@schema("public")
 }
 
+// 央行資本市場利率表 EG43M01en 全部 20 欄的長表（2026-11-23 起，跟 MonthlyGovBondYield10y 同一次匯入寫）。
+// 除了次級市場十年期公債，其他欄只有當月有發行才有值，沒有值的月份沒有列。
+model MonthlyCapitalMarketRate {
+  year     Int // 西元年
+  month    Int // 1-12
+  category String // 見 govBondYield10y/types.ts 的 CapitalMarketRateCategory（20 種）
+
+  rate Decimal @db.Decimal(8, 4) // 年息百分比；來源最多 3 位小數
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([year, month, category])
+  @@map("monthly_capital_market_rate")
+  @@schema("public")
+}
+
+// 央行貨幣市場利率表 EG41M01en 全部 21 欄的長表（2026-11-23 起）。"-" 的月份沒有列。
+model MonthlyMoneyMarketRate {
+  year     Int // 西元年
+  month    Int // 1-12
+  category String // 見 monthlyMoneyMarketRate/types.ts 的 MoneyMarketRateCategory（21 種）
+
+  rate Decimal @db.Decimal(8, 4) // 年息百分比；來源最多 3 位小數
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([year, month, category])
+  @@map("monthly_money_market_rate")
+  @@schema("public")
+}
+
 /// 五大銀行存款利率與基準放款利率月資料，由 /api/ingest/five-major-bank-rate 觸發向央行統計資料庫
 /// API（FileName=EG2BM01en，"29.Interest Rates-B.Rates by five major banks By Period"）抓取整份三欄。
 /// 1987-M1 起，2026-10-07 實測 476 列、零缺值，所以三欄都不是 nullable。
@@ -125,6 +158,23 @@ model MonthlyMonetaryAggregate {
 
   @@id([year, month])
   @@map("monthly_monetary_aggregate")
+  @@schema("public")
+}
+
+// 央行貨幣總計數 EF15M01en 全部 15 項（日平均）的長表（2026-11-23 起，跟 MonthlyMonetaryAggregate 同一次匯入寫）。
+model MonthlyMonetaryAggregateComponent {
+  year     Int // 西元年
+  month    Int // 1-12
+  category String // 見 monthlyMonetaryAggregate/types.ts 的 MonetaryAggregateComponentCategory（15 項）
+
+  amountMillionNtd Decimal  @map("amount_million_ntd") @db.Decimal(14, 0) // 百萬新台幣（詞彙表：金額預設千元，例外單位寫進欄名）
+  yoyChangePercent Decimal? @map("yoy_change_percent") @db.Decimal(8, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([year, month, category])
+  @@map("monthly_monetary_aggregate_component")
   @@schema("public")
 }
 
@@ -280,6 +330,27 @@ model MonthlyCpi {
   @@schema("public")
 }
 
+// 主計總處 CPI 檔案全部 81 項（總指數、七大類、73 細項）的長表（2026-11-23 起，跟 MonthlyCpi 同一次匯入寫）。
+// 階層照官方編號推，見 monthlyCpi/parser.ts 的 describeCpiItems。
+model MonthlyCpiItem {
+  year           Int // 西元年
+  month          Int // 1-12
+  itemName       String  @map("item_name") // 官方名稱去掉編號和基期標註，例如「米類及其製品」
+  category       String // 所屬大類，同 MonthlyCpi.category；總指數是 total
+  parentItemName String? @map("parent_item_name") // 上一層的 item_name；總指數是 null
+  itemOrder      Int     @map("item_order") // 官方檔案裡的順序，從 1 起
+
+  indexValue       Decimal? @map("index_value") @db.Decimal(10, 4)
+  yoyChangePercent Decimal? @map("yoy_change_percent") @db.Decimal(8, 4)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([year, month, itemName])
+  @@map("monthly_cpi_item")
+  @@schema("public")
+}
+
 /// 國民所得統計－GDP貢獻度－依支出分季資料，由 /api/ingest/quarterly-gdp 觸發向主計總處固定路徑
 /// 統計檔案（na8102a7q.xml，跟 monthly_cpi 同一種 DataSet/Obs XML 格式，見 adapters/dgbas/client.ts）
 /// 抓取。官方原始檔案只有 12 個項目（不像 CPI 有 81 個細項要篩選），全部保留：經濟成長率本身，加上
@@ -302,13 +373,37 @@ model QuarterlyGdp {
   // 'inventory_change' | 'net_external_demand_total' | 'exports' | 'imports'
 
   contributionPoints Decimal? @map("contribution_points") @db.Decimal(10, 4) // 原始值，百分點貢獻度（Item_VALUE 對應「原始值」TYPE，實測最大值 25.43，Decimal(10,4) 夠用）
-  yoyChangePercent   Decimal? @map("yoy_change_percent") @db.Decimal(14, 4) // 年增率(%)——實測驗證過「國外淨需求-小計」1986Q1 這欄真實值是 24300（基期接近零時年增率會爆量，不是資料錯誤），比其他 domain 的 yoyChangePercent 欄位（Decimal(8,4)）寬很多就是為了撐住這種極端值
+  // 年增率(%)——注意是「貢獻度本身」的年增率（今年這季貢獻度 ÷ 去年同季貢獻度 − 1，2026-11-23 核對過），不是各項目的成長率，
+  // 所以不放進 v_quarterly_gdps；各項目的實質成長率另存在 QuarterlyGdpExpenditure。實測「國外淨需求-小計」1986Q1 是 24300
+  // （基期接近零時會爆量），比其他 domain 的 yoyChangePercent 欄位（Decimal(8,4)）寬很多就是為了撐住這種極端值
+  yoyChangePercent   Decimal? @map("yoy_change_percent") @db.Decimal(14, 4)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@id([year, quarter, category])
   @@map("quarterly_gdp")
+  @@schema("public")
+}
+
+// 主計總處「國內生產毛額及平減指數依支出分-季」（na8102a6q.xml）17 個項目（2026-11-23 起）。每季每項一列，三組值各帶年增率。
+model QuarterlyGdpExpenditure {
+  year     Int // 西元年
+  quarter  Int // 1-4
+  category String // 見 quarterlyGdpExpenditure/types.ts 的 GdpExpenditureCategory（17 項）
+
+  nominalAmountMillionNtd Decimal? @map("nominal_amount_million_ntd") @db.Decimal(14, 0) // 當期價格，新台幣百萬元
+  nominalYoyPercent       Decimal? @map("nominal_yoy_percent") @db.Decimal(8, 2)
+  realAmountMillionNtd    Decimal? @map("real_amount_million_ntd") @db.Decimal(14, 0) // 連鎖實質值，新台幣百萬元
+  realYoyPercent          Decimal? @map("real_yoy_percent") @db.Decimal(8, 2) // 實質成長率
+  deflatorIndex           Decimal? @map("deflator_index") @db.Decimal(10, 2) // 平減指數（目前 2021 = 100）
+  deflatorYoyPercent      Decimal? @map("deflator_yoy_percent") @db.Decimal(8, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@id([year, quarter, category])
+  @@map("quarterly_gdp_expenditure")
   @@schema("public")
 }
 
