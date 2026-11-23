@@ -1,6 +1,7 @@
 {
   "name": "oingg-gov-ts",
   "version": "1.0.0",
+  "private": true,
   "description": "Ingests data from the Central Bank of the Republic of China (Taiwan) Statistical Database API into a Postgres database.",
   "main": "src/index.ts",
   "packageManager": "pnpm@11.28.9",
@@ -18,7 +19,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "9.1.0",
     "@prisma/adapter-pg": "^7.10.1",
