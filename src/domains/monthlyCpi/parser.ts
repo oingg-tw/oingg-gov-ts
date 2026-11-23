@@ -58,13 +58,107 @@ export const parseMonthlyCpi = (xml: string): MonthlyCpiPoint[] => {
   return [...points.values()];
 };
 
-type CpiItemMeta = Pick<MonthlyCpiItemPoint, 'itemName' | 'category' | 'parentItemName' | 'itemOrder'>;
+type CpiItemMeta = Pick<MonthlyCpiItemPoint, 'itemName' | 'itemCode' | 'category' | 'parentItemName' | 'itemOrder'>;
 
 const BASE_YEAR_NOTE = /\(指數基期：[^)]*\)\s*$/;
 
+// 73 個細項的英文代碼（數據中台 2026-11-24 要的：網站拿細項當鍵）。官方只有層級編號，增刪細項會跳號，所以由 gov 定。
+// 依大類分組，key 是 itemName。主計總處改名或新增細項時這裡對不到就丟錯：改名的要沿用舊代碼，代碼一旦給出去就不改。
+// 總指數和七大類不在這裡，代碼就是 category。
+export const CPI_SUB_ITEM_CODES: Readonly<Record<CpiCategory, Readonly<Record<string, string>>>> = {
+  total: {},
+  food: {
+    穀類及其製品: 'cereals',
+    米類及其製品: 'rice',
+    其他穀類及其製品: 'other_cereals',
+    肉類: 'meat',
+    生鮮家畜: 'fresh_livestock_meat',
+    生鮮家禽: 'fresh_poultry',
+    肉類製品: 'processed_meat',
+    蛋類: 'eggs',
+    水產品: 'seafood',
+    加工水產品: 'processed_seafood',
+    蔬菜: 'vegetables',
+    根菜: 'root_vegetables',
+    莖菜: 'stem_vegetables',
+    葉菜: 'leafy_vegetables',
+    果菜及其他: 'fruit_vegetables_and_other',
+    加工蔬菜: 'processed_vegetables',
+    水果: 'fruits',
+    加工水果: 'processed_fruits',
+    乳類: 'dairy',
+    食用油: 'edible_oils',
+    調味品: 'seasonings',
+    酒: 'alcoholic_beverages',
+    非酒精性飲料及材料: 'non_alcoholic_beverages',
+    調理食品: 'prepared_foods',
+    外食費: 'food_away_from_home',
+    其他食品: 'other_foods',
+  },
+  clothing: {
+    成衣: 'garments',
+    男用衣著: 'mens_garments',
+    女用衣著: 'womens_garments',
+    兒童衣著及學生制服: 'childrens_garments_and_school_uniforms',
+    鞋類: 'footwear',
+    衣著服務及配件: 'clothing_services_and_accessories',
+  },
+  housing: {
+    房租: 'rent',
+    住宅維修費: 'dwelling_repairs',
+    維修材料: 'repair_materials',
+    維修服務: 'repair_services',
+    家庭用品: 'household_goods',
+    紡織品: 'household_textiles',
+    家具: 'furniture',
+    家庭耐久設備: 'household_durables',
+    餐具及其他家用品: 'tableware_and_other_household_goods',
+    家庭管理費用: 'household_management',
+    水電燃氣: 'water_electricity_gas',
+    燃氣: 'gas',
+    水費: 'water',
+    電費: 'electricity',
+    公共附加費: 'public_surcharges',
+  },
+  transport_communication: {
+    交通及通訊設備: 'transport_communication_equipment',
+    交通工具: 'vehicles',
+    通訊設備: 'communication_equipment',
+    油料費: 'vehicle_fuel',
+    交通服務及維修零件: 'transport_services_and_parts',
+    運輸費: 'transport_fares',
+    通訊費: 'communication_fees',
+    交通工具零件及維修費: 'vehicle_parts_and_repairs',
+    其他交通服務費: 'other_transport_services',
+  },
+  medical: {
+    醫療費用: 'medical_services',
+    藥品及保健食品: 'medicines_and_health_foods',
+    醫療保健器材: 'medical_equipment',
+  },
+  education_recreation: {
+    教養費用: 'education',
+    書報期刊: 'books_and_periodicals',
+    學雜費: 'tuition_and_fees',
+    補習及學習費: 'tutoring_and_lessons',
+    教養設備及用具: 'educational_equipment',
+    娛樂費用: 'recreation',
+    娛樂設備: 'recreation_equipment',
+    娛樂服務: 'recreation_services',
+  },
+  misc: {
+    香菸及檳榔: 'tobacco_and_betel_nuts',
+    美容及衛生用品: 'beauty_and_hygiene_products',
+    個人隨身用品: 'personal_effects',
+    個人照顧服務費: 'personal_care_services',
+    理容服務費: 'hairdressing_services',
+    其他: 'other_misc',
+  },
+};
+
 // 81 項的階層照官方編號推：「一.」~「七.」是大類（對照 CATEGORY_PREFIXES）、「1.」是大類底下一層、「(1)」是再下一層。
 // 檔案裡的項目就照這個順序排（2026-11-23 用 11-12 的銅層檔核對過），所以第一次出現的順序就是官方順序，
-// 也推得出上一層。編號格式沒見過、層級接不上、或兩項同名（itemName 是主鍵的一部分）都丟錯，不猜。
+// 也推得出上一層。編號格式沒見過、層級接不上、兩項同名（itemName 是主鍵的一部分）、或細項沒有代碼都丟錯，不猜。
 const describeCpiItems = (items: string[]): Map<string, CpiItemMeta> => {
   const metas = new Map<string, CpiItemMeta>();
   const names = new Set<string>();
@@ -73,7 +167,7 @@ const describeCpiItems = (items: string[]): Map<string, CpiItemMeta> => {
   items.forEach((raw, i) => {
     const label = raw.replace(BASE_YEAR_NOTE, '').trim();
     const itemOrder = i + 1;
-    let meta: CpiItemMeta;
+    let meta: Omit<CpiItemMeta, 'itemCode'>;
     let m: RegExpMatchArray | null;
     if (label === '總指數') {
       meta = { itemName: label, category: 'total', parentItemName: null, itemOrder };
@@ -95,7 +189,12 @@ const describeCpiItems = (items: string[]): Map<string, CpiItemMeta> => {
     }
     if (!meta.itemName || names.has(meta.itemName)) throw new Error(`主計總處 CPI 項目名稱「${meta.itemName}」是空的或重複，格式可能已變更。`);
     names.add(meta.itemName);
-    metas.set(raw, meta);
+    const isTopLevel = meta.parentItemName === null || meta.parentItemName === '總指數';
+    const itemCode = isTopLevel ? meta.category : CPI_SUB_ITEM_CODES[meta.category][meta.itemName];
+    if (!itemCode) {
+      throw new Error(`主計總處 CPI 細項「${meta.itemName}」（${meta.category}）沒有對照的 item_code：可能改了名稱或新增細項，要在 CPI_SUB_ITEM_CODES 決定代碼（改名的沿用舊代碼）。`);
+    }
+    metas.set(raw, { ...meta, itemCode });
   });
   return metas;
 };
