@@ -1,8 +1,9 @@
 import prisma from '@/adapters/prisma/index';
 import { upsertRows } from '@/shared/upsertRows';
 import { fetchDgbasXml } from '@/adapters/dgbas/client';
-import { parseMonthlyCpi } from '@/domains/monthlyCpi/parser';
-import type { MonthlyCpiPoint } from '@/domains/monthlyCpi/types';
+import { createManyChunked } from '@/shared/createManyChunked';
+import { parseMonthlyCpi, parseMonthlyCpiItems } from '@/domains/monthlyCpi/parser';
+import type { MonthlyCpiItemPoint, MonthlyCpiPoint } from '@/domains/monthlyCpi/types';
 
 // 主計總處固定路徑統計檔案，沒有查詢參數，每次都回傳整段歷史（1981M01 至今）。
 const CPI_XML_URL = 'https://ws.dgbas.gov.tw/001/Upload/461/relfile/11525/230555/pr0101a1m.xml';
@@ -13,6 +14,7 @@ export interface IngestMonthlyCpiResult {
   totalPoints: number;
   fetched: number;
   skipped: number;
+  cpiItemPoints?: number; // 全部 81 項的列數（monthly_cpi_item）
   error?: string;
 }
 
@@ -38,6 +40,8 @@ const recordIngestionRun = async (status: 'success' | 'failed', points: MonthlyC
 // 4,376 筆，逐點兩次資料庫往返在 Neon 的網路延遲下實測跑了近 10 分鐘，改成 createMany 之後幾秒鐘
 // 就能跑完（見 quarterlyGdp/service.ts 的說明，同一套理由）。force 時整批刪除重建，不 force 時同鍵覆寫
 // （shared/upsertRows.ts），衝突鍵是 (year, month, category)。
+// 2026-11-23 起同一份檔也寫全部 81 項（monthly_cpi_item → v_monthly_cpi_items，約 4.4 萬列），不另開 job 重抓。
+// ingestion_runs 仍記在 v_monthly_cpis 底下，列數是七大類那張的。
 export const ingestMonthlyCpi = async (force = false): Promise<IngestMonthlyCpiResult> => {
   let xml: string;
   try {
@@ -48,8 +52,10 @@ export const ingestMonthlyCpi = async (force = false): Promise<IngestMonthlyCpiR
   }
 
   let points: MonthlyCpiPoint[];
+  let items: MonthlyCpiItemPoint[];
   try {
     points = parseMonthlyCpi(xml);
+    items = parseMonthlyCpiItems(xml);
   } catch (error) {
     await recordIngestionRun('failed', []);
     return { success: false, totalPoints: 0, fetched: 0, skipped: 0, error: error instanceof Error ? error.message : String(error) };
@@ -60,15 +66,25 @@ export const ingestMonthlyCpi = async (force = false): Promise<IngestMonthlyCpiR
   let fetched: number;
   let skipped: number;
   if (force) {
-    await prisma.$transaction([prisma.monthlyCpi.deleteMany({}), prisma.monthlyCpi.createMany({ data })], { timeout: 30000 });
+    // 81 項約 4.4 萬列，一次 createMany 的參數會超過 Postgres 上限，分批寫，所以用互動式交易
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.monthlyCpi.deleteMany({});
+        await tx.monthlyCpi.createMany({ data });
+        await tx.monthlyCpiItem.deleteMany({});
+        await createManyChunked((rows) => tx.monthlyCpiItem.createMany({ data: rows }), items);
+      },
+      { maxWait: 30000, timeout: 180000 }
+    );
     fetched = points.length;
     skipped = 0;
   } else {
     const { inserted, updated } = await upsertRows('MonthlyCpi', ['year', 'month', 'category'], data);
     fetched = inserted + updated;
     skipped = points.length - fetched;
+    await upsertRows('MonthlyCpiItem', ['year', 'month', 'itemName'], items);
   }
 
   await recordIngestionRun('success', points);
-  return { success: true, totalPoints: points.length, fetched, skipped };
+  return { success: true, totalPoints: points.length, fetched, skipped, cpiItemPoints: items.length };
 };

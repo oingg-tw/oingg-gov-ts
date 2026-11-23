@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMonthlyMonetaryAggregate } from '@/domains/monthlyMonetaryAggregate/parser';
+import { parseMonthlyMonetaryAggregate, parseMonthlyMonetaryAggregateComponents } from '@/domains/monthlyMonetaryAggregate/parser';
 import type { CbcApiResponse } from '@/adapters/cbc';
 
 // 模擬真實回應的交錯配對：每個 structure 欄位在列裡佔 [餘額, 年增率] 兩格。這裡放 4 欄（一個無關欄
@@ -60,5 +60,44 @@ describe('parseMonthlyMonetaryAggregate', () => {
   it('throws when data.structure is missing', () => {
     const raw = { meta: {}, data: { dataSets: [] } } as unknown as CbcApiResponse;
     expect(() => parseMonthlyMonetaryAggregate(raw)).toThrow(/data\.structure/);
+  });
+});
+
+// 全部 15 項，名稱和順序照真實回應；貨幣市場基金那項來源就有連續空白。
+const ALL_COMPONENTS = [
+  'Currency held by the public', 'Deposit money-Subtotal', 'Deposit money-Checking accounts', 'Deposit money-Passbook deposits',
+  'Deposit money-Passbook savings deposits', 'Quasi-money-Subtotal', 'Quasi-money-Time & savings deposits', 'Quasi-money-Foreign currency deposits',
+  'Quasi-money-Postal savings deposits', 'Quasi-money-Non-residents NTD deposits', 'Quasi-money-Repurchase agreements',
+  'Quasi-money-Money  market mutual  funds etc', 'Monetary aggregates-M1A', 'Monetary aggregates-M1B', 'Monetary aggregates-M2',
+];
+const componentResponse = (dataSets: unknown[], columns = ALL_COMPONENTS): CbcApiResponse => ({
+  meta: {},
+  data: { structure: { Table1: columns.map((data) => ({ data })) }, dataSets },
+});
+// 每項 [餘額, 年增率]；沒給的項目填 "-"
+const componentRow = (period: string, values: Record<number, [string, string]>): string[] => [
+  period,
+  ...ALL_COMPONENTS.flatMap((_, i) => values[i] ?? ['-', '-']),
+];
+
+describe('parseMonthlyMonetaryAggregateComponents', () => {
+  it('stores one row per component, matching names with squashed whitespace', () => {
+    const points = parseMonthlyMonetaryAggregateComponents(
+      componentResponse([componentRow('2026M09', { 0: ['3575963', '4.72'], 11: ['424374', '-2.38'], 14: ['71361845', '-'] })])
+    );
+    expect(points).toEqual([
+      { year: 2026, month: 9, category: 'currency_held_by_public', amountMillionNtd: 3575963, yoyChangePercent: 4.72 },
+      { year: 2026, month: 9, category: 'money_market_funds', amountMillionNtd: 424374, yoyChangePercent: -2.38 },
+      { year: 2026, month: 9, category: 'm2', amountMillionNtd: 71361845, yoyChangePercent: null },
+    ]);
+  });
+
+  it('throws on an amount with decimals, since the column would round it', () => {
+    expect(() => parseMonthlyMonetaryAggregateComponents(componentResponse([componentRow('2026M09', { 0: ['3575963.5', '4.72'] })]))).toThrow(/有小數/);
+  });
+
+  it('throws on a column it has never mapped, or when one disappears', () => {
+    expect(() => parseMonthlyMonetaryAggregateComponents(componentResponse([], [...ALL_COMPONENTS, 'Monetary aggregates-M3']))).toThrow(/沒對照過的欄位/);
+    expect(() => parseMonthlyMonetaryAggregateComponents(componentResponse([], ALL_COMPONENTS.slice(1)))).toThrow(/少了欄位/);
   });
 });

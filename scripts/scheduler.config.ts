@@ -77,6 +77,9 @@ export const schedulerConfig = {
     { name: 'daily-usd-twd-rate-daily', path: '/api/ingest/daily-usd-twd-rate', schedule: '42 3 * * 1-6' },
     { name: 'monthly-stock-market-summary-daily', path: '/api/ingest/monthly-stock-market-summary', schedule: '52 3 * * 1-6' },
     { name: 'cbc-policy-rate-daily', path: '/api/ingest/cbc-policy-rate', schedule: '2 5 * * 1-6' },
+    // 貨幣市場利率（EG41M01en）2026-11-23 加：網頁前端用商業本票等短期利率跟十年期公債算長短天期利差。同屬月報系列，
+    // 節奏同上。03:32 是空檔（03:27 週二基金基本資料、03:33 每月 1 日景氣峰谷、03:37 貨幣總計數）。
+    { name: 'monthly-money-market-rate-daily', path: '/api/ingest/monthly-money-market-rate', schedule: '32 3 * * 1-6' },
     // 美國政策利率跟 cbc-policy-rate 一樣週一到週六都跑：FOMC 一年只開 8 次，但決議當天就該反映，
     // 而三個 CSV 都很小。05:12 是空檔（05:02 是 cbc-policy-rate）。
     { name: 'us-policy-rate-daily', path: '/api/ingest/us-policy-rate', schedule: '12 5 * * 1-6' },
@@ -90,6 +93,9 @@ export const schedulerConfig = {
     { name: 'monthly-cpi-daily', path: '/api/ingest/monthly-cpi', schedule: '7 3 * * 1-6' },
     { name: 'monthly-unemployment-rate-daily', path: '/api/ingest/monthly-unemployment-rate', schedule: '12 3 * * 1-6' },
     { name: 'quarterly-gdp-daily', path: '/api/ingest/quarterly-gdp', schedule: '17 3 * * 1-6' },
+    // GDP 依支出分（名目、連鎖實質、平減指數）2026-11-23 加：網頁前端的 GDP 頁要各項目的實質成長率。跟上面那支同時發布。
+    // 04:02 是空檔（gov 03:02～05:40 的時段內）。
+    { name: 'quarterly-gdp-expenditure-daily', path: '/api/ingest/quarterly-gdp-expenditure', schedule: '2 4 * * 1-6' },
     // 國發會景氣指標 ZIP（ws.ndc.gov.tw），官方每月 27 日發布新聞稿，但開放資料檔會晚一點才換
     // （2026-10-28 03:22 抓到的還是舊檔）。
     { name: 'monthly-business-cycle-indicator-daily', path: '/api/ingest/monthly-business-cycle-indicator', schedule: '22 3 * * 1-6' },

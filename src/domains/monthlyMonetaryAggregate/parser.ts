@@ -1,5 +1,9 @@
 import type { CbcApiResponse } from '@/adapters/cbc';
-import type { MonthlyMonetaryAggregatePoint } from '@/domains/monthlyMonetaryAggregate/types';
+import type {
+  MonetaryAggregateComponentCategory,
+  MonthlyMonetaryAggregateComponentPoint,
+  MonthlyMonetaryAggregatePoint,
+} from '@/domains/monthlyMonetaryAggregate/types';
 import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 三個總計數在 data.structure 裡的顯示名稱（2026-09-21 用真實回應核對過）。用名稱比對找欄位索引，
@@ -75,5 +79,66 @@ export const parseMonthlyMonetaryAggregate = (raw: CbcApiResponse): MonthlyMonet
     });
   }
 
+  return points;
+};
+
+// 全部 15 項的顯示名稱 → category（2026-11-23 用 11-12 的銅層檔核對過）。來源名稱裡有連續空白
+// （"Money  market mutual  funds etc"），比對前把空白壓成一個，只容許空白差異。多一項或少一項都丟錯。
+const COMPONENT_COLUMNS: Readonly<Record<string, MonetaryAggregateComponentCategory>> = {
+  'Currency held by the public': 'currency_held_by_public',
+  'Deposit money-Subtotal': 'deposit_money_total',
+  'Deposit money-Checking accounts': 'checking_deposits',
+  'Deposit money-Passbook deposits': 'passbook_deposits',
+  'Deposit money-Passbook savings deposits': 'passbook_savings_deposits',
+  'Quasi-money-Subtotal': 'quasi_money_total',
+  'Quasi-money-Time & savings deposits': 'time_and_savings_deposits',
+  'Quasi-money-Foreign currency deposits': 'foreign_currency_deposits',
+  'Quasi-money-Postal savings deposits': 'postal_savings_deposits',
+  'Quasi-money-Non-residents NTD deposits': 'non_resident_ntd_deposits',
+  'Quasi-money-Repurchase agreements': 'repurchase_agreements',
+  'Quasi-money-Money market mutual funds etc': 'money_market_funds',
+  'Monetary aggregates-M1A': 'm1a',
+  'Monetary aggregates-M1B': 'm1b',
+  'Monetary aggregates-M2': 'm2',
+};
+const squash = (name: string) => name.replace(/\s+/g, ' ').trim();
+
+// 長表：一個（月, 項目）一列。餘額 "-" 不存那一列，年增率 "-" 存 null（同 parseMonthlyMonetaryAggregate）。
+export const parseMonthlyMonetaryAggregateComponents = (raw: CbcApiResponse): MonthlyMonetaryAggregateComponentPoint[] => {
+  const tableKey = Object.keys(raw.data?.structure ?? {})[0];
+  const columns = tableKey ? raw.data.structure[tableKey] : undefined;
+  if (!columns) throw new Error('CBC EF15M01en 回應缺少 data.structure，格式可能已變更。');
+
+  const categories = columns.map((col) => {
+    const category = COMPONENT_COLUMNS[squash(col.data)];
+    if (!category) throw new Error(`CBC EF15M01en 出現沒對照過的欄位「${col.data}」，格式可能已變更。`);
+    return category;
+  });
+  const missing = Object.keys(COMPONENT_COLUMNS).filter((name) => !columns.some((col) => squash(col.data) === name));
+  if (missing.length) throw new Error(`CBC EF15M01en 少了欄位「${missing.join('」「')}」，格式可能已變更。`);
+
+  const rows = raw.data?.dataSets;
+  if (!Array.isArray(rows)) throw new Error('CBC EF15M01en 回應缺少 data.dataSets，格式可能已變更。');
+
+  const points: MonthlyMonetaryAggregateComponentPoint[] = [];
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue;
+    const period = row[0];
+    if (typeof period !== 'string') continue;
+    const match = period.match(/^(\d{4})M(\d{2})$/);
+    if (!match) continue;
+    if (row.length !== 1 + VALUES_PER_COLUMN * columns.length) {
+      throw new Error(`CBC EF15M01en 的列長度 ${row.length} 跟 1 + 2 × ${columns.length} 欄不符，餘額/年增率交錯配對的假設可能已變更。`);
+    }
+    categories.forEach((category, i) => {
+      const field = `CBC EF15M01en ${period} ${columns[i]?.data}`;
+      const amount = parseSourceNumber(row[AMOUNT_OFFSET + VALUES_PER_COLUMN * i], ['-'], `${field} 餘額`);
+      if (amount === null) return;
+      // 欄位是 Decimal(14,0)：有小數會被四捨五入，所以先擋下來
+      if (!Number.isInteger(amount)) throw new Error(`${field} 餘額「${amount}」有小數，跟以往的整數不同，格式可能已變更。`);
+      const yoyChangePercent = parseSourceNumber(row[YOY_OFFSET + VALUES_PER_COLUMN * i], ['-'], `${field} 年增率`);
+      points.push({ year: Number(match[1]), month: Number(match[2]), category, amountMillionNtd: amount, yoyChangePercent });
+    });
+  }
   return points;
 };

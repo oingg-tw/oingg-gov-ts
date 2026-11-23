@@ -1,5 +1,6 @@
 import { OUTBOUND_USER_AGENT } from '@/shared/config';
 import { fetchUpstream } from '@/shared/bronze';
+import { parseSourceNumber } from '@/shared/parseSourceValue';
 
 // 中央銀行統計資料庫 API（cpx.cbc.gov.tw）的共用 GET client。查詢語法固定是
 // `?FileName=ItemCode`，ItemCode 對照表見專案根目錄 CBC-ITEM-CODES.md（整理自央行提供的
@@ -32,4 +33,44 @@ export const fetchCbcItem = async (itemCode: string): Promise<CbcApiResponse> =>
     throw new Error(`CBC API 回應非 200：${response.status}（itemCode=${itemCode}）`);
   }
   return JSON.parse(response.body.toString('utf8')) as CbcApiResponse;
+};
+
+// 一欄一個 category 的央行利率表（資本市場利率 EG43M01en、貨幣市場利率 EG41M01en）轉成長表：一個（月, category）一列，
+// "-" 是沒有值，不存列。欄名對照表要跟來源完全一致，多一欄或少一欄都丟錯：多出來的不知道是什麼不能亂存，少了代表表格改版。
+export const parseCbcRateTable = <C extends string>(
+  raw: CbcApiResponse,
+  itemCode: string,
+  columnCategories: Readonly<Record<string, C>>
+): { year: number; month: number; category: C; rate: number }[] => {
+  const tableKey = Object.keys(raw.data?.structure ?? {})[0];
+  const columns = tableKey ? raw.data.structure[tableKey] : undefined;
+  if (!columns) throw new Error(`CBC ${itemCode} 回應缺少 data.structure，格式可能已變更。`);
+
+  const categories = columns.map((col) => {
+    const category = columnCategories[col.data];
+    if (!category) throw new Error(`CBC ${itemCode} 出現沒對照過的欄位「${col.data}」，格式可能已變更。`);
+    return category;
+  });
+  const missing = Object.keys(columnCategories).filter((name) => !columns.some((col) => col.data === name));
+  if (missing.length) throw new Error(`CBC ${itemCode} 少了欄位「${missing.join('」「')}」，格式可能已變更。`);
+
+  const rows = raw.data?.dataSets;
+  if (!Array.isArray(rows)) throw new Error(`CBC ${itemCode} 回應缺少 data.dataSets，格式可能已變更。`);
+
+  const points: { year: number; month: number; category: C; rate: number }[] = [];
+  for (const row of rows) {
+    if (!Array.isArray(row)) continue;
+    const period = row[0];
+    if (typeof period !== 'string') continue;
+    const match = period.match(/^(\d{4})M(\d{2})$/);
+    if (!match) continue; // 同各 CBC parser：不是月資料的期間不收
+    if (row.length !== 1 + columns.length) {
+      throw new Error(`CBC ${itemCode} ${period} 有 ${row.length - 1} 個值，跟 ${columns.length} 欄不符，格式可能已變更。`);
+    }
+    categories.forEach((category, i) => {
+      const rate = parseSourceNumber(row[i + 1], ['-'], `CBC ${itemCode} ${period} ${columns[i]?.data}`);
+      if (rate !== null) points.push({ year: Number(match[1]), month: Number(match[2]), category, rate });
+    });
+  }
+  return points;
 };

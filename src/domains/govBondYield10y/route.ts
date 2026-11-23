@@ -10,7 +10,7 @@ registry.registerPath({
   path: '/api/ingest/gov-bond-yield-10y',
   summary: '向央行統計資料庫抓取10年期政府公債次級市場殖利率月資料',
   description:
-    '透過 CBC 統計資料庫 API（FileName=EG43M01en，"Capital Market Interest Rates By Period"）抓取，只取回應中「Bond market-10-year gov\'t bond rates in secondary market」這一欄——次級市場實際成交殖利率，適合當 CAPM 無風險利率；不是發行端得標利率，也不含同一份回應裡的公司債/銀行債/央行存單利率（跟這個用途無關）。單次請求就回傳 1987-M5 至今整段月資料，不像其他 domain 需要按公司/季度/年份分次請求，所以沒有單筆/backfill 的區分，也不需要節流間隔。存的是百分比數字（例如 1.234 代表 1.234%）。依 year + month 為主鍵；未帶 force 時同鍵覆寫（新鍵插入、值變了才更新、沒變的跳過）。次級市場殖利率是歷史成交事實，理論上不會被事後修正，force 主要用於重跑時強制刷新。',
+    '透過 CBC 統計資料庫 API（FileName=EG43M01en，"Capital Market Interest Rates By Period"）抓取。v_monthly_gov_bond_yields_10y 只放「Bond market-10-year gov\'t bond rates in secondary market」這一欄——次級市場實際成交殖利率，適合當 CAPM 無風險利率；同一份回應的全部 20 欄（各天期政府公債、公司債、金融債券、央行單券，除了次級市場十年期都是當月有發行才有值）2026-11-23 起另存 v_monthly_capital_market_rates（長表，"-" 不存列）。單次請求就回傳 1987-M5 至今整段月資料，不像其他 domain 需要按公司/季度/年份分次請求，所以沒有單筆/backfill 的區分，也不需要節流間隔。存的是百分比數字（例如 1.234 代表 1.234%）。依 year + month 為主鍵；未帶 force 時同鍵覆寫（新鍵插入、值變了才更新、沒變的跳過）。次級市場殖利率是歷史成交事實，理論上不會被事後修正，force 主要用於重跑時強制刷新。',
   tags: ['Ingestion'],
   security: [{ TaskSecret: [] }],
   request: {

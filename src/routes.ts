@@ -1,6 +1,8 @@
 import { Router } from 'ultimate-express';
 import rootRouter from '@/domains/system/root';
 import govBondYield10yRouter from '@/domains/govBondYield10y/route';
+import monthlyMoneyMarketRateRouter from '@/domains/monthlyMoneyMarketRate/route';
+import quarterlyGdpExpenditureRouter from '@/domains/quarterlyGdpExpenditure/route';
 import monthlyFiveMajorBankRateRouter from '@/domains/monthlyFiveMajorBankRate/route';
 import cbcPolicyRateRouter from '@/domains/cbcPolicyRate/route';
 import monthlyMonetaryAggregateRouter from '@/domains/monthlyMonetaryAggregate/route';
@@ -50,6 +52,7 @@ router.use(rootRouter);
 const ingestRouter = Router();
 ingestRouter.use(requireTaskSecret, ingestRateLimit, bronzeRun); // bronzeRun：原始回應存進銅層，見 shared/bronze.ts
 ingestRouter.use(govBondYield10yRouter);
+ingestRouter.use(monthlyMoneyMarketRateRouter);
 ingestRouter.use(monthlyFiveMajorBankRateRouter);
 ingestRouter.use(cbcPolicyRateRouter);
 ingestRouter.use(monthlyMonetaryAggregateRouter);
@@ -60,6 +63,7 @@ ingestRouter.use(ecbPolicyRateRouter);
 ingestRouter.use(monthlyStockMarketSummaryRouter);
 ingestRouter.use(monthlyCpiRouter);
 ingestRouter.use(quarterlyGdpRouter);
+ingestRouter.use(quarterlyGdpExpenditureRouter);
 ingestRouter.use(monthlyUnemploymentRateRouter);
 ingestRouter.use(monthlyBusinessCycleIndicatorRouter);
 ingestRouter.use(businessCycleReferenceDateRouter);
