@@ -24,6 +24,7 @@ export interface MonthlyCpiItemPoint {
   year: number; // 西元年
   month: number; // 1-12
   itemName: string; // 官方名稱去掉編號和基期標註，例如「米類及其製品」；81 項不重複（解析時檢查）
+  itemCode: string; // gov 定的英文代碼（parser.ts 的 CPI_SUB_ITEM_CODES），主計總處改名、改編號時不變；總指數和七大類同 category
   category: CpiCategory; // 所屬大類，總指數自己是 total
   parentItemName: string | null; // 上一層的 itemName；總指數是 null，大類是「總指數」
   itemOrder: number; // 官方檔案裡的順序，從 1 起

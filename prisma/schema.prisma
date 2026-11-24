@@ -336,6 +336,9 @@ model MonthlyCpiItem {
   year           Int // 西元年
   month          Int // 1-12
   itemName       String  @map("item_name") // 官方名稱去掉編號和基期標註，例如「米類及其製品」
+  // gov 定的英文代碼（monthlyCpi/parser.ts 的 CPI_SUB_ITEM_CODES；總指數和七大類同 category），主計總處改名時不變。
+  // 2026-11-24 加，先允許 null 讓上一版程式還能寫入，穩定後再改 NOT NULL。
+  itemCode       String? @map("item_code")
   category       String // 所屬大類，同 MonthlyCpi.category；總指數是 total
   parentItemName String? @map("parent_item_name") // 上一層的 item_name；總指數是 null
   itemOrder      Int     @map("item_order") // 官方檔案裡的順序，從 1 起

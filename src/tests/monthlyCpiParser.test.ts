@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMonthlyCpi, parseMonthlyCpiItems } from '@/domains/monthlyCpi/parser';
+import { CPI_SUB_ITEM_CODES, parseMonthlyCpi, parseMonthlyCpiItems } from '@/domains/monthlyCpi/parser';
 
 const obs = (item: string, timePeriod: string, freq: string, type: string, value: string): string =>
   `<Obs><Item>${item}</Item><TIME_PERIOD>${timePeriod}</TIME_PERIOD><FREQ>${freq}</FREQ><TYPE>${type}</TYPE><Item_VALUE>${value}</Item_VALUE></Obs>`;
@@ -80,14 +80,27 @@ describe('parseMonthlyCpiItems', () => {
       ['成衣', 'clothing', '衣著類', 7],
     ]);
     expect(points[3]).toMatchObject({ year: 2026, month: 10, indexValue: 111.1, yoyChangePercent: 0.5 });
+    expect(points.map((p) => p.itemCode)).toEqual(['total', 'food', 'cereals', 'rice', 'meat', 'clothing', 'garments']);
   });
 
   it('skips an item-month where both values are empty, keeps one where only yoy is empty', () => {
     const xml = item('總指數', '1981M01', '52.95', '') + item('一.食物類', '1981M01', '', '');
     const points = parseMonthlyCpiItems(xml);
     expect(points).toEqual([
-      { year: 1981, month: 1, itemName: '總指數', category: 'total', parentItemName: null, itemOrder: 1, indexValue: 52.95, yoyChangePercent: null },
+      { year: 1981, month: 1, itemName: '總指數', itemCode: 'total', category: 'total', parentItemName: null, itemOrder: 1, indexValue: 52.95, yoyChangePercent: null },
     ]);
+  });
+
+  it('throws on a sub-item with no item_code instead of inventing one', () => {
+    expect(() => parseMonthlyCpiItems(item('一.食物類', '2026M10', '1', '1') + item('1.穀物', '2026M10', '1', '1'))).toThrow(/沒有對照的 item_code/);
+  });
+
+  it('gives 73 unique snake_case sub-item codes that never reuse a category code', () => {
+    const codes = Object.values(CPI_SUB_ITEM_CODES).flatMap((byName) => Object.values(byName));
+    const categories = Object.keys(CPI_SUB_ITEM_CODES);
+    expect(codes).toHaveLength(73);
+    expect(new Set([...codes, ...categories]).size).toBe(73 + categories.length);
+    for (const code of codes) expect(code).toMatch(/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/);
   });
 
   it('throws on a numbering format it has never seen', () => {
@@ -101,7 +114,11 @@ describe('parseMonthlyCpiItems', () => {
   });
 
   it('throws when two items end up with the same name (item_name is part of the key)', () => {
-    const xml = item('一.食物類', '2026M10', '1', '1') + item('1.其他', '2026M10', '1', '1') + item('2.其他', '2026M10', '1', '1');
+    const xml =
+      item('一.食物類', '2026M10', '1', '1') +
+      item('1.穀類及其製品', '2026M10', '1', '1') +
+      item('(1)米類及其製品', '2026M10', '1', '1') +
+      item('(2)米類及其製品', '2026M10', '1', '1');
     expect(() => parseMonthlyCpiItems(xml)).toThrow(/空的或重複/);
   });
 
