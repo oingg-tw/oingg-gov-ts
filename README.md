@@ -387,3 +387,34 @@ minutes apart and each ingest route holds a per-dataset in-flight lock — but t
 circumstance, not a guarantee. Setting it to 1 explicitly would be the prerequisite for
 tuning the pg pool size, which is currently not worth doing (see
 `src/shared/createManyChunked.ts`).
+
+## 待辦
+
+### 進行中（2026-11-25 整理）
+
+使用者 11-24 要各 agent 整理待辦，11-25 要各 session 直接跟他回報（管理站轉達）。日期是台北時間。有日期的提醒只活在政府資料後台那個 Claude session 裡，session 斷了就照這張表手動做。細節記在那個 session 的記憶。
+
+**等使用者決定**
+
+| 事項 | 狀態 | 下一步 | 日期 | 等誰 | 治理頁 |
+|---|---|---|---|---|---|
+| b098fbe 漏標破壞性，要不要補登 | 11-24 刪 `v_monthly_monetary_aggregates` 的 `m1a_amount` 等三欄，commit 沒標 `BREAKING CHANGE`，PRD 部署紀錄記成 0 個破壞性 | 管理站建議不補，gov 同意：讀者已先換讀，也驗過沒有錯誤；補登的時間軸會錯。使用者沒意見就結案 | 沒排 | 使用者 | — |
+| 金鑰輪替要不要先排日期 | 見「排了日期」 | 提議排在 2027-02 初，前一天提醒使用者登入 | 沒排 | 使用者 | — |
+
+**排了日期**
+
+| 事項 | 狀態 | 下一步 | 日期 | 等誰 | 治理頁 |
+|---|---|---|---|---|---|
+| 換 gcloud 服務帳號金鑰（gov-local-ops）和 Neon 金鑰（gov-ts-local） | 第一把 2026-11-17 建，每 90 天換 | 照 CLAUDE.md「本機 gcloud」「Neon 金鑰」的步驟換 | 2027-02-15 前 | 自己＋使用者帳號（暫時解除組織政策；用使用者的 neon 登入建、撤金鑰） | — |
+
+**沒排日期**
+
+| 事項 | 狀態 | 下一步 | 日期 | 等誰 | 治理頁 |
+|---|---|---|---|---|---|
+| `monthly_cpi_item.item_code` 改 NOT NULL | 11-24 上 PRD、補齊了，欄位仍允許 null，因為退版回 00066-c5r 的舊版不寫這欄 | 新版穩定、不會再退到 00066-c5r 之後，寫 migration | 沒排 | 自己 | — |
+| ECB 回 504 時那筆匯入的 `raw_objects` | PRD 還沒碰到 | 碰到時看 `ingestion_runs` 有沒有記到失敗回應的檔 | 事件發生時 | 上游 | — |
+| 真的殖利率曲線（櫃買的指標公債殖利率） | 央行 EG43M01en 除了十年期以外都是稀疏的發行利率，網站不畫曲線 | 網頁前端要去問櫃買，等它們決定要不要 gov 收 | 沒排 | 網頁前端、櫃買 | — |
+
+**做完但還沒回報**
+
+- 沒有。11-24、11-25 做完的都回報給管理站和相關的 session 了。
